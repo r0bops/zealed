@@ -79,6 +79,9 @@ export async function zcash(): Promise<ZcashBackend> {
   if (!Number.isSafeInteger(MIN_CONFIRMATIONS) || MIN_CONFIRMATIONS < 1) throw new Error("Invalid confirmation threshold");
   const which = process.env.ZCASH_BACKEND ?? "fake";
   if (which === "fake") { assertSimulationAllowed(); return fakeBackend; }
+  // Real detection: a watch-only zkool_graphql account. It verifies itself (reachable, address
+  // belongs to the watched account) before any checkout is created or receipt is trusted.
+  if (which === "zkool") return (await import("./zcash-zkool")).zkoolBackend;
   // Fail before generating a checkout for an adapter that cannot verify payments.
   throw new Error("Real Zcash payment backend is not configured and verified");
 }
