@@ -78,6 +78,11 @@ export type AgentEvent = typeof agentEvents.$inferSelect;
 
 // Bootstrap DDL kept next to the schema so a fresh volume works without a migration step.
 export const BOOTSTRAP_SQL = `
+CREATE TABLE IF NOT EXISTS spend_reservations (
+  order_id TEXT PRIMARY KEY,
+  amount_cents INTEGER NOT NULL CHECK(amount_cents > 0),
+  charged_at INTEGER
+);
 CREATE TABLE IF NOT EXISTS listings (
   id TEXT PRIMARY KEY,
   type TEXT NOT NULL,

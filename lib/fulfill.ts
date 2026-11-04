@@ -6,6 +6,8 @@ import {
   createInvoice,
   FINAL_INVOICE_STATUSES,
   getInvoice,
+  getProduct,
+  priceFor,
   getOrder,
   purchaseMode,
   testProductFor,
@@ -16,7 +18,7 @@ import { cartHash } from "./cart";
 import type { Order } from "./db/schema";
 import { fulfillKeyPair } from "./fulfill-key";
 import { log, safeError } from "./log";
-import { getOrder as getDbOrder, patchOrder, transition } from "./orders";
+import { getOrder as getDbOrder, patchOrder, transition, claimFulfillment } from "./orders";
 import { encodeContent, type SealedContent } from "./payload";
 import { open, seal } from "./sodium";
 import { zcash } from "./zcash";
@@ -54,11 +56,17 @@ export async function fulfillOrder(orderId: string): Promise<FulfillResult> {
   const backend = await zcash();
   const mode = purchaseMode(backend.simulated);
   // Reserve the purchase before calling Bitrefill, so a crash or replay can never buy twice.
-  if (!transition(order.id, "paid", "fulfilling", { fulfillMode: mode })) return { status: "skipped" };
+  if (!claimFulfillment(order.id, mode)) return { status: "skipped" };
 
   let phone: string | undefined;
   try {
     const kind = order.type as ProductKind;
+    if (mode === "live") {
+      const current = await getProduct(order.productId ?? "", true);
+      if (!current || current.kind !== kind || priceFor(current, order.packageValue ?? "") !== order.priceUsdCents) {
+        return finish(order, "failed", { failure: "Product availability or price changed; request a new quote" });
+      }
+    }
     if (kind === "topup") {
       if (!order.sealedPhone) return finish(order, "failed", { failure: "no sealed phone number" });
       const fk = await fulfillKeyPair();
@@ -98,7 +106,7 @@ export async function fulfillOrder(orderId: string): Promise<FulfillResult> {
       invoice = await getInvoice(invoiceId, kind);
     }
     const first = invoice.orders?.[0];
-    if (!first) return finish(order, "failed_uncertain", { failure: `invoice ${invoice.status} without orders` });
+    if (!first) return finish(order, "failed_uncertain", { failure: "Invoice has no delivery orders; reconcile before retrying" });
 
     let bOrder = await getOrder(first.id);
     while (bOrder.status !== "delivered" && bOrder.status !== "failed" && bOrder.status !== "refunded" && Date.now() - started < POLL_TIMEOUT_MS) {
@@ -108,7 +116,7 @@ export async function fulfillOrder(orderId: string): Promise<FulfillResult> {
     if (bOrder.status !== "delivered") {
       return finish(order, bOrder.status === "failed" || bOrder.status === "refunded" ? "failed" : "failed_uncertain", {
         bitrefillOrderId: first.id,
-        failure: `Bitrefill order ${bOrder.status}`,
+        failure: "Bitrefill order not delivered; reconcile before retrying",
       });
     }
 
@@ -121,6 +129,7 @@ export async function fulfillOrder(orderId: string): Promise<FulfillResult> {
     return finish(order, "failed_uncertain", { failure: "fulfillment error; reconcile before retrying" });
   } finally {
     phone = undefined;
+    if (order.type === "topup") patchOrder(order.id, { sealedPhone: null, wipedAt: Date.now() });
   }
 }
 

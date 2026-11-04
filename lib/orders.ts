@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { eventMetadata } from "./chat-privacy";
-import { and, desc, eq, gte, inArray, sql } from "drizzle-orm";
+import { evaluateGuardrails, limitsFromEnv } from "./guardrails";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { db, schema } from "./db/client";
 import type { Order } from "./db/schema";
 import { assertTransition, type OrderStatus } from "./order-state";
@@ -51,22 +52,51 @@ export function ordersInStatus(statuses: OrderStatus[]): Order[] {
   return db().select().from(orders).where(inArray(orders.status, statuses)).all();
 }
 
-/** Agent spend today (UTC), counting every agent order that wasn't abandoned. */
-export function agentSpentTodayCents(): number {
+/** Outstanding reservations plus purchases claimed today, including legacy orders. */
+export function agentSpentTodayCents(excludeOrderId = ""): number {
   const start = new Date();
   start.setUTCHours(0, 0, 0, 0);
-  const row = db()
-    .select({ total: sql<number>`coalesce(sum(${orders.priceUsdCents}), 0)` })
-    .from(orders)
-    .where(
-      and(
-        eq(orders.source, "agent"),
-        gte(orders.createdAt, start.getTime()),
-        inArray(orders.status, ["awaiting_payment", "payment_seen", "paid", "fulfilling", "delivered", "failed_uncertain"]),
-      ),
-    )
-    .get();
-  return Number(row?.total ?? 0);
+  const row = db().$client.prepare(`SELECT
+    (SELECT coalesce(sum(amount_cents), 0) FROM spend_reservations
+      WHERE order_id != ? AND (charged_at >= ? OR order_id IN
+        (SELECT id FROM orders WHERE status IN ('fulfilling','failed_uncertain')) OR (charged_at IS NULL AND order_id IN
+        (SELECT id FROM orders WHERE status IN ('awaiting_payment','payment_seen','paid','fulfilling','failed_uncertain')))))
+    + (SELECT coalesce(sum(price_usd_cents), 0) FROM orders
+      WHERE id != ? AND source = 'agent' AND id NOT IN (SELECT order_id FROM spend_reservations)
+      AND (status IN ('awaiting_payment','payment_seen','paid','fulfilling','failed_uncertain')
+        OR (status = 'delivered' AND coalesce(paid_at,created_at) >= ?))) AS total`).get(excludeOrderId, start.getTime(), excludeOrderId, start.getTime()) as { total: number };
+  return row.total;
+}
+
+export class ReservationError extends Error {
+  constructor(readonly status: number, message: string) { super(message); }
+}
+
+/** Single SQLite write transaction covers proposal replay, budget reservation and order insertion. */
+export function reserveOrder(row: typeof orders.$inferInsert, usedKey: string, approved: boolean): Order {
+  return db().$client.transaction(() => {
+    if (kvGet(usedKey)) throw new ReservationError(409, "This checkout was already used.");
+    const decision = evaluateGuardrails({ priceCents: row.priceUsdCents, spentTodayCents: agentSpentTodayCents(), limits: limitsFromEnv() });
+    if (decision.verdict === "BLOCK" || (decision.verdict === "REQUIRE_HUMAN" && !approved)) throw new ReservationError(403, "Spending limit or approval requirement prevents this order.");
+    const order = insertOrder({ ...row, guardrail: decision.verdict, guardrailReason: decision.reason });
+    db().$client.prepare("INSERT INTO spend_reservations(order_id,amount_cents) VALUES (?,?)").run(row.id, row.priceUsdCents);
+    kvSet(usedKey, true);
+    return order;
+  }).immediate();
+}
+
+/** Re-check daily rollover and caps in the same transaction as the purchase claim. */
+export function claimFulfillment(id: string, mode: string): boolean {
+  return db().$client.transaction(() => {
+    const order = getOrder(id);
+    if (!order || order.status !== "paid") return false;
+    const decision = evaluateGuardrails({ priceCents: order.priceUsdCents, spentTodayCents: agentSpentTodayCents(id), limits: limitsFromEnv() });
+    if (decision.verdict === "BLOCK" || (decision.verdict === "REQUIRE_HUMAN" && !order.approvedAt)) return false;
+    if (!transition(id, "paid", "fulfilling", { fulfillMode: mode })) return false;
+    db().$client.prepare(`INSERT INTO spend_reservations(order_id,amount_cents,charged_at) VALUES (?,?,?)
+      ON CONFLICT(order_id) DO UPDATE SET amount_cents=excluded.amount_cents,charged_at=excluded.charged_at`).run(id, order.priceUsdCents, now());
+    return true;
+  }).immediate();
 }
 
 export function recentOrders(limit = 20): Order[] {

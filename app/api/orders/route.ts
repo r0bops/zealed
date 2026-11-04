@@ -4,7 +4,7 @@ import { buildMemo, cartHash } from "@/lib/cart";
 import { evaluateGuardrails, limitsFromEnv } from "@/lib/guardrails";
 import { log, safeError } from "@/lib/log";
 import { centsToZat } from "@/lib/money";
-import { agentSpentTodayCents, insertOrder, kvGet, kvSet, logAgentEvent, publicOrder } from "@/lib/orders";
+import { agentSpentTodayCents, reserveOrder, ReservationError, kvGet, logAgentEvent, publicOrder } from "@/lib/orders";
 import { verifyProposal } from "@/lib/proposal";
 import { isPublicKey } from "@/lib/sodium";
 import { buildZip321, newMemoTag } from "@/lib/zip321";
@@ -41,7 +41,7 @@ export async function POST(req: Request) {
   if (kvGet<boolean>(usedKey)) return fail(409, "This checkout was already used. Ask the agent for a new one.");
 
   try {
-    const product = await getProduct(proposal.productId);
+    const product = await getProduct(proposal.productId, true);
     const priceCents = product ? priceFor(product, proposal.packageValue) : null;
     if (priceCents == null) return fail(409, "This product can no longer be priced. Ask the agent again.");
     if (priceCents > Math.ceil(proposal.priceCents * 1.05)) return fail(409, "The price went up since the quote. Ask the agent again.");
@@ -60,7 +60,7 @@ export async function POST(req: Request) {
     const payAddr = await backend.receiveAddress();
     const t = Date.now();
 
-    const order = insertOrder({
+    const order = reserveOrder({
       id,
       type: proposal.kind,
       source: "agent",
@@ -82,8 +82,7 @@ export async function POST(req: Request) {
       expiresAt,
       createdAt: t,
       updatedAt: t,
-    });
-    kvSet(usedKey, true);
+    }, usedKey, proposal.approved);
 
     const memo = buildMemo(memoTag, hash);
     const zip321 = buildZip321(payAddr, BigInt(amountZat), memo);
@@ -99,6 +98,7 @@ export async function POST(req: Request) {
     });
     return Response.json({ order: publicOrder(order), zip321, memo, simulatedPayment: backend.simulated }, { status: 201 });
   } catch (e) {
+    if (e instanceof ReservationError) return fail(e.status, e.message);
     log.error("order creation failed", { err: safeError(e) });
     return fail(500, "Couldn't create the order. Try again.");
   }
