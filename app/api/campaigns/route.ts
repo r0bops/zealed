@@ -6,7 +6,7 @@ export async function GET(req: Request) {
   try {
     requireAdmin(req);
     const campaigns = db().$client.prepare("SELECT * FROM campaigns ORDER BY created_at DESC LIMIT 30").all() as Campaign[];
-    return campaignResponse({ campaigns: campaigns.map(sponsorSummary), simulatedCatalog: isSimulated(), purchaseMode: purchaseMode(process.env.ZCASH_BACKEND === "fake") });
+    return campaignResponse({ campaigns: campaigns.map(sponsorSummary), simulatedCatalog: isSimulated(), purchaseMode: purchaseMode((process.env.ZCASH_BACKEND ?? "fake") === "fake") });
   } catch (e) { return campaignFailure(e); }
 }
 export async function POST(req: Request) {
