@@ -33,6 +33,17 @@ export function limitsFromEnv(env: Record<string, string | undefined> = process.
 
 const usd = (c: number) => `$${(c / 100).toFixed(2)}`;
 
+/**
+ * Catalog prices move with the live BTC/USD rate. A purchase may go ahead if the current cost is at most
+ * PRICE_DRIFT_TOLERANCE above the price the buyer (or sponsor) approved, and never above `hardCapCents`.
+ * Zealed absorbs that small drift; the order keeps its approved price.
+ */
+export const PRICE_DRIFT_TOLERANCE = 0.05;
+export function priceDriftOk(currentCents: number | null, approvedCents: number, hardCapCents: number): boolean {
+  if (currentCents == null || !Number.isSafeInteger(currentCents) || currentCents < 1) return false;
+  return currentCents <= Math.min(Math.ceil(approvedCents * (1 + PRICE_DRIFT_TOLERANCE)), hardCapCents);
+}
+
 export function evaluateGuardrails({ priceCents, spentTodayCents, limits }: GuardrailInput): GuardrailDecision {
   const checks: GuardrailDecision["checks"] = [];
   const validPrice = Number.isSafeInteger(priceCents) && priceCents > 0;

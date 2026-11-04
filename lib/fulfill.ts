@@ -20,6 +20,7 @@ import type { Order } from "./db/schema";
 import { fulfillKeyPair } from "./fulfill-key";
 import { log, safeError } from "./log";
 import { getOrder as getDbOrder, patchOrder, transition, claimFulfillment } from "./orders";
+import { limitsFromEnv, priceDriftOk } from "./guardrails";
 import { encodeContent, type SealedContent } from "./payload";
 import { open, seal } from "./sodium";
 import { zcash } from "./zcash";
@@ -64,7 +65,8 @@ export async function fulfillOrder(orderId: string): Promise<FulfillResult> {
     const kind = order.type as ProductKind;
     if (mode === "live") {
       const current = await getProduct(order.productId ?? "", true);
-      if (!current || current.kind !== kind || priceFor(current, order.packageValue ?? "") !== order.priceUsdCents) {
+      // Live cost may drift with the BTC/USD rate since checkout: allow a little, never above the per-order cap.
+      if (!current || current.kind !== kind || !priceDriftOk(priceFor(current, order.packageValue ?? ""), order.priceUsdCents, limitsFromEnv().approvalLimitCents)) {
         return finish(order, "failed", { failure: "Product availability or price changed; request a new quote" });
       }
     }

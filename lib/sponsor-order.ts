@@ -1,6 +1,7 @@
 import { campaign, claimForCampaign, CampaignError, checkChoice, reserveSponsoredOrder, type Choice } from "./campaigns";
 import { getOrder } from "./orders";
 import { getProduct, priceFor } from "./bitrefill";
+import { priceDriftOk } from "./guardrails";
 import { zcash } from "./zcash";
 import { centsToZat } from "./money";
 import { newMemoTag } from "./zip321";
@@ -13,7 +14,8 @@ export async function approveReward(id: string) {
   const chosen = JSON.parse(player.choice) as Choice;
   checkChoice(c, chosen);
   const product = await getProduct(chosen.productId, true);
-  if (!product?.inStock || product.kind !== chosen.kind || priceFor(product, chosen.packageValue) !== chosen.priceCents) throw new CampaignError(409, "The package or price changed. Create a new invitation; this one will not buy automatically.");
+  // The BTC/USD rate refreshes every 5 minutes, so allow small drift since the selection, never above the budget.
+  if (!product?.inStock || product.kind !== chosen.kind || !priceDriftOk(priceFor(product, chosen.packageValue), chosen.priceCents, c.budget_cents)) throw new CampaignError(409, "The package or price changed. Create a new invitation; this one will not buy automatically.");
   const backend = await zcash(), orderId = crypto.randomUUID(), now = Date.now();
   const amountZat = Number(centsToZat(chosen.priceCents, Number(process.env.ZEC_USD_RATE || 30))) + 1 + Math.floor(Math.random() * 999);
   const expiresAt = now + 15 * 60_000;
