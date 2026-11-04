@@ -3,6 +3,7 @@
 // sponsor approves → REAL shielded payment from the zkool payer → watcher confirms → Bitrefill buys
 // (test products with BITREFILL_PURCHASES=test) → the player decrypts locally.
 // Run: npx tsx --env-file=.env.local scripts/e2e-rewards.ts [connectivity|gift]
+// Against the public site: E2E_BASE=https://tryzealed.xyz (sponsor via "Start funding"; E2E_USE_ADMIN=1 for the operator token)
 // In email-list mode (MISSION_MODE=email) the player claims with E2E_ATTENDEE_EMAIL (default bob@example.org from
 // demo/luma-guests-demo.csv); each attendee claims once per event, so use a different listed email per run.
 import { randomBytes } from "node:crypto";
@@ -29,9 +30,16 @@ async function call<T>(method: string, path: string, token: string, body?: unkno
 
 async function main() {
   const purpose = process.argv[2] === "gift" ? "gift" : "connectivity";
-  const admin = process.env.CAMPAIGN_ADMIN_TOKEN ?? "";
+  // Sponsor credential: an anonymous "Start funding" session (POST /api/sponsors) by default, or the operator
+  // token when E2E_USE_ADMIN=1. Neither is printed.
+  let admin = process.env.E2E_USE_ADMIN === "1" ? (process.env.CAMPAIGN_ADMIN_TOKEN ?? "") : "";
+  if (!admin) {
+    const session = await call<{ token: string }>("POST", "/api/sponsors", "");
+    admin = session.token;
+    console.log(`${at()} sponsor session started (anonymous key kept in memory only)`);
+  }
   const payer = Number(process.env.ZKOOL_PAYER_ID);
-  if (admin.length < 32) throw new Error("CAMPAIGN_ADMIN_TOKEN is not set");
+  if (admin.length < 32) throw new Error("no sponsor credential: open sponsor sessions are off and CAMPAIGN_ADMIN_TOKEN is not set");
   if (!Number.isSafeInteger(payer) || payer < 1) throw new Error("ZKOOL_PAYER_ID is not set");
 
   // 1. Organizer creates a single-use campaign.
