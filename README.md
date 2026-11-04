@@ -37,7 +37,7 @@ Zealed began as private checkout for travel connectivity. NU7 testnet wallet too
 | **Bitrefill lane** | 5, Private by default, with mission-triggered fulfillment and gift on claim |
 | **What it is** | A web app for event mission rewards (organizer and participant sides), with an AI agent that picks the perk |
 | **Live URL** | https://tryzealed.xyz (also https://www.tryzealed.xyz). Bitrefill purchases run in **test mode**. Sponsors start with **Start funding**, with no token needed |
-| **Demo video** | Coming soon |
+| **Demo video** | https://youtu.be/aOoADgejk7A |
 | **Testnet txid** | `1843616532cee751cbe556e902723d47b6675b6c92300b24070b8b6d1961f9ca`: a sponsor's shielded payment authorising a mission reward, mined at height 4581978. [Explorer](https://testnet.zcashexplorer.app/transactions/1843616532cee751cbe556e902723d47b6675b6c92300b24070b8b6d1961f9ca). More in [the evidence](#testnet-transaction-evidence) |
 | **Real purchase invoice ID** | None yet. Every purchase so far was one of Bitrefill's free test products (invoices below). A paid purchase needs event credits and `BITREFILL_PURCHASES=live` |
 | **Bitrefill test-product invoices** | `7d8e4569-daa5-4de9-9a35-518b7d42c47f` (mission reward, eSIM) · `2cc79a30-29c6-423a-9d7a-8844d63b671a` (mission reward, gift card) · `306668d4-01cd-4294-a08c-a6e94641eb11` (attendee-checked reward, gift card) · `98d4f316-c3fa-482a-9137-91723064b4e5` (checkout gift card) · `3f51bca9-39bc-4579-bd51-6df1fc584d4b` (checkout eSIM). These are real API purchases of Bitrefill's free test products, and their codes can't be redeemed |
@@ -762,7 +762,7 @@ Names only. Copy `.env.example` to `.env.local`, and never commit real values.
 
 ## Demo
 
-The planned demo follows the same flow you can run on the live site, and every step in it must be real (video coming soon):
+The planned demo follows the same flow you can run on the live site, and every step in it must be real (https://youtu.be/aOoADgejk7A):
 
 1. **Fund.** The sponsor clicks **Start funding** and creates a campaign with missions, a $5 budget and gift card, eSIM and TAZ prizes.
 2. **Share.** The sponsor shows the invitation QR full screen, and the participant scans it at `/claim` on another device.
@@ -772,7 +772,7 @@ The planned demo follows the same flow you can run on the live site, and every s
 6. **Deliver.** The watch-only watcher confirms the payment, Bitrefill delivers the test product, and the participant's browser decrypts it, with the code masked.
 7. **Pass it on.** The participant sends a one-time gift link, and the friend's browser opens it once.
 
-Demo video: coming soon.
+Demo video: https://youtu.be/aOoADgejk7A
 
 ---
 
