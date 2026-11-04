@@ -32,6 +32,14 @@ function progress(status: string): { done: number; failed: boolean } {
   if (status === "delivered") return { done: 5, failed: false };
   return { done: 4, failed: true };
 }
+/** Quick budget picks (from PR #3), limited to what this sponsor may spend per reward. */
+function BudgetChips({ value, limitCents, onPick }: { value: string; limitCents: number; onPick: (v: string) => void }) {
+  const picks = [1, 2, 5, 10, 20].filter(n => n * 100 <= limitCents).slice(-3);
+  return <div className="flex flex-wrap gap-2" role="group" aria-label="Budget suggestions">{picks.map(n => {
+    const on = Number(value) === n;
+    return <button type="button" key={n} aria-pressed={on} className={`min-h-11 rounded-full border px-4 text-sm font-medium ${on ? "border-accent text-accent" : "border-line"}`} onClick={() => onPick(n.toFixed(2))}>${n}</button>;
+  })}</div>;
+}
 export function CampaignDashboard() {
   const [view, setView] = useState<"create" | "manage">("create");
   const [step, setStep] = useState(0);
@@ -151,13 +159,13 @@ export function CampaignDashboard() {
             <ProgramBuilder value={program} onChange={p => { setProgram(p); setEligibility(false); }} section="prizes" presets={!customCatalog} />
             {needsCatalog && <section className="workspace-stack border-t border-line pt-6" aria-label="Bitrefill product eligibility">
               <div><h3 className="text-lg">{customCatalog ? "Your Bitrefill selection" : "Ready for the India demo"}</h3><p className="workspace-note mt-2">{customCatalog ? "Choose at least one product for each Bitrefill prize type." : "Products are already selected. The agent picks a package within your budget; you approve it before paying."}</p></div>
-              {!customCatalog && <label className="flex flex-col gap-2">Maximum spend per Bitrefill prize (USD)<input className={field} inputMode="decimal" value={budget} onChange={e => setBudget(e.target.value)} /><span className="workspace-note">Up to ${(budgetLimit / 100).toFixed(2)}. {data?.purchaseMode === "test" ? "Delivery uses Bitrefill test products, not redeemable cards or mobile data." : data?.purchaseMode === "simulate" ? "This environment simulates delivery." : "Availability and the exact price are checked before purchase."}</span></label>}
+              {!customCatalog && <BudgetChips value={budget} limitCents={budgetLimit} onPick={setBudget} />}{!customCatalog && <label className="flex flex-col gap-2">Maximum spend per Bitrefill prize (USD)<input className={field} inputMode="decimal" value={budget} onChange={e => setBudget(e.target.value)} /><span className="workspace-note">Up to ${(budgetLimit / 100).toFixed(2)}. {data?.purchaseMode === "test" ? "Delivery uses Bitrefill test products, not redeemable cards or mobile data." : data?.purchaseMode === "simulate" ? "This environment simulates delivery." : "Availability and the exact price are checked before purchase."}</span></label>}
               <label className="workspace-choice"><input type="checkbox" checked={eligibility} onChange={e => setEligibility(e.target.checked)} /><span className="text-sm">{!customCatalog && data?.purchaseMode === "test" ? "I understand these are demo rewards: Bitrefill delivers test codes, not usable gift cards or eSIMs." : `I checked ${customCatalog ? "coverage" : "India coverage"}, account requirements and redemption restrictions for the participant.`}</span></label>
               <details onToggle={e => { if (e.currentTarget.open) setError(""); }}>
                 <summary className="min-h-11 cursor-pointer py-3 text-sm text-muted">Advanced: choose different products or country</summary>
                 <div className="workspace-stack pt-4"><label className="workspace-choice"><input type="checkbox" checked={customCatalog} onChange={e => { setCustomCatalog(e.target.checked); setEligibility(false); }} /><span className="text-sm">Use my own catalog selection</span></label>
                 {customCatalog && <>
-              <div className="grid gap-4 sm:grid-cols-2"><label className="flex flex-col gap-2">Country code<input className={field} value={country} maxLength={2} autoComplete="country" onChange={e => { setCountry(e.target.value.toUpperCase()); setSelected([]); setProducts([]); setEligibility(false); }} placeholder="IN" /></label><label className="flex flex-col gap-2">Maximum spend (USD)<input className={field} inputMode="decimal" value={budget} onChange={e => setBudget(e.target.value)} /><span className="workspace-note">Up to ${(budgetLimit / 100).toFixed(2)} per reward.</span></label></div>
+              <div className="grid gap-4 sm:grid-cols-2"><label className="flex flex-col gap-2">Country code<input className={field} value={country} maxLength={2} autoComplete="country" onChange={e => { setCountry(e.target.value.toUpperCase()); setSelected([]); setProducts([]); setEligibility(false); }} placeholder="IN" /></label><div className="flex flex-col gap-2"><label className="flex flex-col gap-2">Maximum spend (USD)<input className={field} inputMode="decimal" value={budget} onChange={e => setBudget(e.target.value)} /><span className="workspace-note">Up to ${(budgetLimit / 100).toFixed(2)} per reward.</span></label><BudgetChips value={budget} limitCents={budgetLimit} onPick={setBudget} /></div></div>
               <form onSubmit={e => { e.preventDefault(); void run(async () => { const d = await request<{ products: CatalogProduct[] }>(`/api/campaigns/catalog?q=${encodeURIComponent(query)}&country=${encodeURIComponent(country)}`, token); setProducts(d.products); setKnownProducts(all => ({ ...all, ...Object.fromEntries(d.products.map(p => [p.id, p])) })); setSearched(true); }); }} className="flex flex-col gap-3">
                 <label className="flex flex-col gap-2">Search the catalog<input type="search" className={field} value={query} minLength={2} maxLength={60} required onChange={e => setQuery(e.target.value)} placeholder="eSIM, gift card or brand" /></label><button disabled={busy} className={buttonSecondary}>{busy ? "Searching…" : "Search catalog"}</button>
               </form>
