@@ -5,9 +5,10 @@ import { createOrderKey, rememberOrder, loadKey } from "@/lib/keystore";
 import { PaymentPanel } from "../../checkout";
 import { RewardLayout, field, button, panel, request } from "../../reward-ui";
 import { Steps } from "../../role-switch";
+import { MissionModeNote, ReclaimVerify } from "../reclaim-verify";
 import type { Choice } from "@/lib/campaigns";
 type Session = { invitation: string; publicKey?: string; secret?: string; claimId?: string };
-type Invitation = { title: string; country: string; budgetCents: number; claimed: boolean; expired: boolean; expiresAt: number; mission: { question: string; options: string[] } };
+type Invitation = { title: string; country: string; budgetCents: number; claimed: boolean; expired: boolean; expiresAt: number; mission: { question: string; options: string[] }; missionMode?: "reclaim" | "quiz"; missionLabel?: string };
 type Status = { id: string; state: string; choice: Choice | null; orderId: string | null };
 export function PlayerClaim({ campaignId }: { campaignId: string }) {
   const storageKey = `zealed:claim:${campaignId}`;
@@ -66,7 +67,9 @@ export function PlayerClaim({ campaignId }: { campaignId: string }) {
     {!invitation && !error && <p role="status">Loading invitation…</p>}
     {invitation && <><p className="text-muted">One reward up to ${(invitation.budgetCents / 100).toFixed(2)} for use in {invitation.country}. Your sponsor authorises the purchase; your browser receives the encrypted result.</p>
       <Steps label="Your claim progress" steps={["Mission", "Pick a perk", "Sponsor approves", "Open your reward"]} current={claimStep} />
-      {!session?.claimId && <form className={panel} onSubmit={complete}>
+      {!session?.claimId && <MissionModeNote mode={invitation.missionMode} />}
+      {!session?.claimId && invitation.missionMode === "reclaim" && <ReclaimVerify campaignId={campaignId} storageKey={storageKey} session={session} invitation={invitation} onSession={setSession} />}
+      {!session?.claimId && invitation.missionMode !== "reclaim" && <form className={panel} onSubmit={complete}>
         <h2 className="text-lg font-semibold">A short privacy mission</h2>
         <p className="text-sm text-muted">A broadcast is only a request to the network. Zealed waits for confirmation and checks the recipient, amount and order memo before fulfillment.</p>
         <fieldset className="flex flex-col gap-2"><legend className="mb-3 font-medium">{invitation.mission.question}</legend>{invitation.mission.options.map((option, i) => <label key={option} className="flex min-h-11 items-center gap-3 rounded-lg border border-line p-3 text-sm"><input type="radio" name="answer" required value={i} checked={answer === String(i)} onChange={e => setAnswer(e.target.value)} />{option}</label>)}</fieldset>
