@@ -140,6 +140,11 @@
   color: var(--gold);
 }
 
+/* Leading Z of the product name. Same Zcash gold as the landing accent. */
+.zl-root .z-accent {
+  color: var(--gold);
+}
+
 .zl-hero {
   position: relative;
   overflow: hidden;
@@ -178,8 +183,12 @@
   margin: 20px 0;
 }
 
-.zl-hero h1 span {
+.zl-hero h1 .zl-line,
+.zl-hero h1 .zl-goldLine {
   display: block;
+}
+
+.zl-hero h1 .zl-goldLine {
   color: var(--gold);
 }
 
@@ -216,10 +225,80 @@
   pointer-events: none;
 }
 
-.zl-chest img {
+.zl-chestBtn {
+  appearance: none;
+  display: block;
   position: relative;
   width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.zl-chestBtn:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 6px;
+  border-radius: 18px;
+}
+
+.zl-chestSvg {
+  display: block;
+  width: 100%;
   height: auto;
+  overflow: visible;
+}
+
+.zl-lid {
+  transform-box: view-box;
+  transform-origin: 300px 270px;
+}
+
+.zl-interior {
+  opacity: 0;
+}
+
+.zl-sparks {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.zl-spark {
+  position: absolute;
+  left: 50%;
+  top: 34%;
+  opacity: 0;
+  color: var(--gold);
+}
+
+.zl-sparkPx {
+  width: 6px;
+  height: 6px;
+  margin: -3px 0 0 -3px;
+  background: var(--gold);
+}
+
+.zl-sparkZ {
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.zl-chestNote {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
 }
 
 @keyframes zl-float {
@@ -247,6 +326,7 @@
 
 .zl-set {
   display: flex;
+  align-items: center;
   gap: 64px;
   padding-right: 64px;
   font-family: var(--font-geist-mono), ui-monospace, monospace;
@@ -264,6 +344,11 @@
   to {
     transform: translateX(-50%);
   }
+}
+
+.zl-marquee:hover .zl-track,
+.zl-marquee:focus-within .zl-track {
+  animation-play-state: paused;
 }
 
 .zl-section {
@@ -609,9 +694,137 @@
   }
 }
 
+@media (prefers-reduced-motion: no-preference) {
+  .zl-in {
+    animation: zl-rise 0.55s cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
+  }
+
+  .zl-d1 { animation-delay: 0.04s; }
+  .zl-d2 { animation-delay: 0.12s; }
+  .zl-d3 { animation-delay: 0.2s; }
+  .zl-d4 { animation-delay: 0.3s; }
+  .zl-d5 { animation-delay: 0.4s; }
+
+  .zl-hero::before {
+    animation: zl-shimmer 1.2s ease both;
+  }
+
+  .zl-hero .zl-chestSvg {
+    animation: zl-chest-in 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) 0.08s backwards;
+  }
+
+  @supports (animation-timeline: scroll()) {
+    .zl-chest {
+      animation: zl-parallax linear both;
+      animation-timeline: scroll(root block);
+      animation-range: 0px 640px;
+    }
+  }
+
+  @supports (animation-timeline: view()) {
+    .zl-reveal {
+      animation: zl-rise 0.75s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 34%;
+    }
+
+    .zl-reveal .zl-card {
+      animation: zl-rise 0.65s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+      animation-timeline: view();
+      animation-range: entry 8% entry 42%;
+    }
+
+    .zl-reveal .zl-card:nth-child(2) { animation-range: entry 14% entry 48%; }
+    .zl-reveal .zl-card:nth-child(3) { animation-range: entry 20% entry 54%; }
+  }
+}
+
+@keyframes zl-rise {
+  from { opacity: 0; transform: translate3d(0, 14px, 0); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes zl-chest-in {
+  from { opacity: 0; transform: translate3d(0, 16px, 0) scale(0.96); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes zl-shimmer {
+  0% { opacity: 0.18; }
+  40% { opacity: 0.48; }
+  100% { opacity: 0.35; }
+}
+
+@keyframes zl-parallax {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(0, 22px, 0); }
+}
+
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .zl-chestBtn:hover:not(.is-open) .zl-chestSvg {
+    animation: zl-wobble 0.7s ease;
+  }
+
+  .zl-chestBtn:hover .zl-seal {
+    filter: drop-shadow(0 0 7px #f4b728);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .zl-chestBtn.is-open .zl-chestSvg {
+    animation: zl-shake 0.45s ease;
+  }
+
+  .zl-chestBtn.is-open .zl-lid {
+    animation: zl-peek 1.05s ease;
+  }
+
+  .zl-chestBtn.is-open .zl-interior {
+    animation: zl-interior 1.05s ease;
+  }
+
+  .zl-chestBtn.is-open .zl-spark {
+    animation: zl-burst 0.9s ease forwards;
+  }
+}
+
+@keyframes zl-wobble {
+  0%, 100% { transform: rotate(0); }
+  35% { transform: rotate(-2.4deg); }
+  70% { transform: rotate(2deg); }
+}
+
+@keyframes zl-shake {
+  0%, 100% { transform: translateX(0) rotate(0); }
+  20% { transform: translateX(-5px) rotate(-1.4deg); }
+  40% { transform: translateX(5px) rotate(1.4deg); }
+  60% { transform: translateX(-3px) rotate(-0.8deg); }
+  80% { transform: translateX(2px) rotate(0.5deg); }
+}
+
+@keyframes zl-peek {
+  0%, 100% { transform: translateY(0) rotate(0); }
+  32%, 62% { transform: translateY(-28px) rotate(-8deg); }
+}
+
+@keyframes zl-interior {
+  0%, 100% { opacity: 0; }
+  32%, 62% { opacity: 0.75; }
+}
+
+@keyframes zl-burst {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.4); }
+  28% { opacity: 1; }
+  100% { opacity: 0; transform: translate(calc(-50% + var(--x)), calc(-50% + var(--y))) scale(1); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .zl-chestFloat,
-  .zl-track {
+  .zl-track,
+  .zl-chestSvg,
+  .zl-lid,
+  .zl-spark,
+  .zl-interior {
     animation: none;
   }
 
