@@ -1,8 +1,6 @@
-import { AGENT_MODEL } from "@/lib/agent";
-import { isSimulated } from "@/lib/bitrefill";
+import Link from "next/link";
 import { limitsFromEnv } from "@/lib/guardrails";
 import { formatUsd } from "@/lib/money";
-import { AgentChat } from "./agent-chat";
 
 export const dynamic = "force-dynamic";
 
@@ -23,11 +21,9 @@ const POINTS = [
 
 export default function Home() {
   const limits = limitsFromEnv();
-  const simulated = isSimulated();
-  const hasKey = Boolean(process.env.ANTHROPIC_API_KEY);
 
   return (
-    <main className="mx-auto grid w-full max-w-6xl flex-1 gap-10 px-4 py-8 sm:px-6 lg:grid-cols-[1fr_1.1fr] lg:py-14">
+    <main className="mx-auto grid w-full max-w-3xl flex-1 gap-10 px-4 py-8 sm:px-6 lg:py-14">
       <section className="flex flex-col gap-8">
         <header className="flex items-center gap-2">
           <span aria-hidden className="grid size-8 place-items-center rounded-full bg-accent text-sm font-bold text-black">
@@ -74,7 +70,10 @@ export default function Home() {
         </dl>
       </section>
 
-      <AgentChat model={AGENT_MODEL} simulatedCatalog={simulated} hasModelKey={hasKey} />
+      <nav aria-label="Shopping" className="flex flex-wrap items-center gap-3">
+        <Link href="/chat" className="inline-flex min-h-11 items-center rounded-xl bg-foreground px-5 py-3 font-medium text-background focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent">Start shopping</Link>
+        <Link href="/orders" className="inline-flex min-h-11 items-center rounded-xl border border-line px-5 py-3 font-medium focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent">My orders</Link>
+      </nav>
     </main>
   );
 }

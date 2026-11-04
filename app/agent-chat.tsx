@@ -13,7 +13,24 @@ const SUGGESTIONS = ["Get me the cheapest Airtel top-up", "I need an eSIM for In
 
 type Part = ZealedAgentUIMessage["parts"][number];
 
-export function AgentChat({ model, simulatedCatalog, hasModelKey }: { model: string; simulatedCatalog: boolean; hasModelKey: boolean }) {
+type ChatProps = { model: string; simulatedCatalog: boolean; hasModelKey: boolean };
+
+export function AgentChat(props: ChatProps) {
+  const [generation, setGeneration] = useState(0);
+  const [cleared, setCleared] = useState(false);
+  function clear() {
+    if (!window.confirm("Clear this conversation and unused proposals? Existing orders keep processing, and your saved decryption keys stay on this device. This does not delete AI-provider records.")) return;
+    setGeneration((value) => value + 1);
+    setCleared(true);
+    requestAnimationFrame(() => document.getElementById("agent-input")?.focus());
+  }
+  return <>
+    {cleared && <p role="status" className="text-sm text-sealed">Conversation cleared. Your orders and keys are still available.</p>}
+    <ChatSession key={generation} {...props} onClear={clear} />
+  </>;
+}
+
+function ChatSession({ model, simulatedCatalog, hasModelKey, onClear }: ChatProps & { onClear: () => void }) {
   const [sessionId] = useState(() => crypto.randomUUID());
   const [input, setInput] = useState("");
   const [warning, setWarning] = useState<string | null>(null);
@@ -29,7 +46,7 @@ export function AgentChat({ model, simulatedCatalog, hasModelKey }: { model: str
   const busy = status === "submitted" || status === "streaming";
 
   useEffect(() => {
-    scroller.current?.scrollTo({ top: scroller.current.scrollHeight, behavior: "smooth" });
+    scroller.current?.scrollTo({ top: scroller.current.scrollHeight, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" });
   }, [messages, status]);
 
   function send(text: string) {
@@ -47,15 +64,16 @@ export function AgentChat({ model, simulatedCatalog, hasModelKey }: { model: str
   return (
     <section
       aria-label="Zealed shopping agent"
-      className="flex h-[min(78vh,720px)] min-h-[520px] flex-col overflow-hidden rounded-2xl border border-line bg-surface shadow-sm"
+      className="flex h-[min(72dvh,800px)] min-h-96 flex-col overflow-hidden rounded-2xl border border-line bg-surface shadow-sm"
     >
-      <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-3">
         <div className="flex items-center gap-2">
           <span aria-hidden className="size-2 rounded-full bg-sealed" />
           <p className="font-medium">Shopping agent</p>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-1.5 text-xs">
-          <Badge>{model}</Badge>
+          <span className="sr-only">Model: {model}</span>
+          <button type="button" onClick={onClear} disabled={busy || (!messages.length && !input && !error)} title={busy ? "Wait for the response to finish or press Stop first" : undefined} className="min-h-10 rounded-lg border border-line px-3 text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-40">Clear conversation</button>
           {simulatedCatalog && <Badge tone="warn">Catalog SIMULATED</Badge>}
         </div>
       </div>
@@ -63,7 +81,7 @@ export function AgentChat({ model, simulatedCatalog, hasModelKey }: { model: str
       <div ref={scroller} className="flex flex-1 flex-col gap-4 overflow-y-auto px-4 py-4" aria-live="polite">
         {!hasModelKey && (
           <Notice tone="danger">
-            <code className="font-mono">ANTHROPIC_API_KEY</code> isn&apos;t set on the server. Add it to <code className="font-mono">.env.local</code> and restart.
+            Shopping chat is temporarily unavailable. Please try again later.
           </Notice>
         )}
         {messages.length === 0 && (
