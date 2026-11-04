@@ -1,5 +1,23 @@
 # Zealed: buy gift cards, eSIMs and top-ups without exposing the code
 
+
+## Mission-rewards implementation (current extension)
+
+Zealed now adds one-use reward campaigns to the original checkout described below. The name remains Zealed.
+
+- `/campaigns`: organizer login using `CAMPAIGN_ADMIN_TOKEN`, live catalog search, campaign creation, aggregate status and exact-order approval/payment.
+- `/claim/[id]`: invitation secret in URL fragment; local player key and separate claim secret; fixed mission, structured preferences, constrained agent selection and encrypted delivery.
+- `campaigns`: title, destination, allowed product IDs, budget, invitation hash, expiry and answer-attempt count. Each campaign permits one claim.
+- `reward_claims`: unique campaign ID, claim-secret hash, recipient public key, selection state/attempts, catalog-backed choice and unique order ID.
+- Sponsor approval reserves the budget and creates one exact order atomically. Existing cart-hash matching, watch-only detection and fulfillment remain authoritative. There is no pooled funding or automatic refund.
+- Claim secrets gate player order reads. Organizer summaries omit player keys, claim secrets and encrypted payloads; organizers still see product and price to approve them. Operators and Bitrefill retain the trust privileges explained below.
+- The model receives country, structured preferences and candidate package metadata only. Mission success, invitation limits, allowed products, price bounds and sponsor authority are checked by deterministic backend code.
+- Five answer attempts and three model attempts per invitation bound abuse; they do not prevent Sybil claims or answer sharing. Browser key/claim recovery works on the same device; cross-device claim recovery is not implemented.
+- Paid campaign fulfillment is unverified. A read-only live-catalog/model check selected an India eSIM within budget. Tests use isolated databases, simulated payments/purchases and a mocked model. Existing real testnet and free Bitrefill test-product evidence remains checkout evidence.
+- Roadmap: multiple claims, stronger eligibility, off-chain ZK answer proofs with replay protection, and separately designed custody/refunds. None are claimed as implemented.
+
+The original checkout specification follows. Historical resale routes and alternative wallet-backend plans below are not implementation evidence; README status and the current code identify what actually exists.
+
 Tracks: Privacy (Zcash) and Agentic Commerce (Bitrefill), Free Society Hack, Mumbai, 4–5 Nov 2026.
 
 **Problem:** Gift card codes and eSIM QR codes leak through platforms, agent logs and breaches, and a leaked code gets drained in seconds. Resale sites are full of stolen and already-used cards. Top-up services store millions of phone numbers.
