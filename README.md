@@ -172,8 +172,11 @@ pnpm zkool:pay 'zcash:utest1…?amount=…&memo=…'
 | Paid Bitrefill purchase of a real product | 🟡 not yet. It needs event credits and `BITREFILL_PURCHASES=live` | TODO: invoice ID, video timestamp |
 | Mission rewards end to end: campaign, mission, claim, agent selection, sponsor approval, shielded payment, Bitrefill purchase, player decryption | ✅ real on NU7 testnet, with a Bitrefill **test product** (`BITREFILL_PURCHASES=test`) | Campaign `b9761ef5` ($5 budget, India, two allowed products). Claim `a831d415`. Claude Haiku chose the India eSIM 1 GB / 7 days at $3.89. Order `f0b73cca`: 0.12967367 TAZ, txid `1843616532cee751cbe556e902723d47b6675b6c92300b24070b8b6d1961f9ca` (height 4581978). Delivered 71 s after sending: invoice `7d8e4569-daa5-4de9-9a35-518b7d42c47f`, Bitrefill order `6aeb1f39ff6775c18aed6e10`. The player decrypted the eSIM activation string locally. **Gift card path:** campaign `e8f9427e`, where the agent chose a Flipkart ₹50 card ($0.56). Order `bc64314b`, txid `89eff39bc9db8418d51eea75c9cfb3bb9462b1e0138ea687a017e3f4fe41f114` (height 4582006), invoice `2cc79a30-29c6-423a-9d7a-8844d63b671a`, decrypted by the player. Script: `scripts/e2e-rewards.ts`. TODO: video timestamp |
 | Result sealed to the buyer, decrypted locally, phone wiped | ✅ in the real-payment runs: a gift card code, and a real eSIM LPA string with its QR code rendered in the browser | orders `6c279e24` and `49efc554`, `lib/safety.test.ts` |
+| Mission proved with a Reclaim zkTLS proof instead of the quiz | 🟡 built and tested with mocked proofs; not live | `lib/reclaim.ts`, `app/claim/reclaim-verify.tsx`, `lib/reclaim.test.ts`. The proof is bound to the claim by a hash of the campaign and the player's key, then checked with Reclaim's `verifyProof` plus provider and freshness checks. Only `{verified, providerId}` is kept. It's off unless `RECLAIM_APP_ID` and `RECLAIM_APP_SECRET` are set, and otherwise the quiz runs, labelled as such |
+| One reward per approved Luma attendee, without storing who they are | 🟡 built and tested with mocked proofs; not live | The nullifier is HMAC(server secret, event ID : Luma user ID), kept in `attendance_nullifiers` (unique per event) and written in the same transaction as the claim. Blocker: Reclaim's public Luma provider proves "invited", not "approved", and reads the event slug rather than its ID, so live use needs a custom Reclaim provider that extracts the guest's approval status |
+| FROST 2-of-3 sponsor treasury (organizer, co-sponsor, Zealed) | 🟡 built and tested against mocked zkool instances; a live DKG hasn't run | `lib/frost.ts`, `pnpm frost:setup`, `pnpm frost:pay`, using zkool's `dkgStart`, `dkgSetAddress` and `frostSign`. The DKG runs over shielded memos (about 3–15 min) and signing takes about 2–10 min. It needs three zkool instances. Risk: zkool's DKG mailbox addresses may be Orchard-only, which can't receive on NU7. Unverified |
 
-**Reward verification:** 65 automated tests pass across ten files. They cover concurrent approvals, attempt limits, recipient-key substitution, HTTP authorization, re-approval after an expired request, price drift and simulated delivery and decryption. TypeScript and lint pass. Browser checks with mocked API responses exercised organizer creation, mission completion, selection and same-browser reload recovery at 375/768/1280 px. These checks are not paid-purchase evidence. The production build (`pnpm build`) succeeds, but deployment to a public URL isn't done yet.
+**Reward verification:** 99 automated tests pass across twelve files. They cover concurrent approvals, attempt limits, recipient-key substitution, HTTP authorization, re-approval after an expired request, price drift, Reclaim proof checks, attendance nullifiers, the FROST client's input validation and error handling, and simulated delivery and decryption. TypeScript and lint pass. Browser checks with mocked API responses exercised organizer creation, mission completion, selection and same-browser reload recovery at 375/768/1280 px. These checks are not paid-purchase evidence. The production build (`pnpm build`) succeeds, but deployment to a public URL isn't done yet.
 
 **Known limitations:**
 - Mission rewards support one claim per campaign and one fixed learning quiz. They don't prove attendance or unique humanity. The real campaign run bought Bitrefill's free test eSIM. A paid real product is still to come.
@@ -204,6 +207,8 @@ pnpm zkool:pay 'zcash:utest1…?amount=…&memo=…'
    - **The buyer's wallet** (for example Noir) sees our address, the amount and the memo.
    - **The BTC price feeds** (Coinbase, with Kraken as a backup) see our server's IP address. No user data is sent to them.
    - **The host:** TODO, name the hosting provider.
+   - **Reclaim** (only if the Reclaim mission is turned on): its servers and attestors see the proved values during verification. Anyone holding Zealed's server secret and a guest's Luma user ID could link that guest to their claim.
+   - **FROST treasury** (not live yet): the participants' wallets exchange the key-generation and signing messages as shielded memos.
 3. **Who do users have to trust?**
    - Zealed as operator: to release only after payment, and to serve honest JavaScript, because a malicious server could serve code that swaps keys.
    - The fulfillment function's brief handling of plaintext.
@@ -265,6 +270,7 @@ pnpm zkool:pay 'zcash:utest1…?amount=…&memo=…'
 - libsodium-wrappers 0.8.4: X25519 key pairs and `crypto_box_seal`
 - Drizzle ORM 0.45.4 with better-sqlite3 13.0.3, zod 4.6.7, qrcode 1.5.4, idb-keyval 6.3.0
 - `@noir-wallet/sdk` 0.1.9 with the Noir Wallet testnet extension
+- `@reclaimprotocol/js-sdk` 5.8.3, for zkTLS mission proofs (optional and not live)
 - zkool2 `zkool_graphql` (v6.36.0 / main@98db198) as a watch-only wallet server, bound to 127.0.0.1, syncing through lightwalletd at `testnet.zec.rocks:443` on Zcash NU7 testnet
 - Bitrefill REST API v2
 - Coinbase and Kraken public price APIs, for BTC/USD
@@ -327,6 +333,7 @@ TODO: link any of these if you publish them as a package.
 - **After that:**
   - Campaigns with many claims, plus budget accounting, revocation and safe expiry. Uncertain purchases stay reserved until they're reconciled.
   - Claim links shared over Telegram or any other chat. The sealed copy is deleted after the first open or after a timer.
+  - Make the Reclaim mission live, with a custom Reclaim provider for approved Luma attendance, and run the FROST 2-of-3 treasury's key generation on testnet.
   - A zero-knowledge proof of the mission answer, bound to the campaign and the player's key, with campaign-scoped nullifiers to stop replays. It proves a statement about the answer, not that the player is a unique human.
   - Pooled sponsor funding and refunds, designed separately: custody, currency conversion, fees, who may refund, and how pending claims settle. Testnet TAZ can't be spent as Bitrefill credit.
   - Network privacy for the watcher (Nym), shorter metadata retention, and issuers encrypting straight to the player's key.
