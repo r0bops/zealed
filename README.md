@@ -45,7 +45,7 @@ Free Society Hack 2026 · Mumbai · Tracks: Privacy (Zcash) + Agentic Commerce (
 | **Testnet txid** | `1843616532cee751cbe556e902723d47b6675b6c92300b24070b8b6d1961f9ca`: a sponsor's shielded payment authorising a mission reward, mined at height 4581978. [Explorer](https://testnet.zcashexplorer.app/transactions/1843616532cee751cbe556e902723d47b6675b6c92300b24070b8b6d1961f9ca). More in [the evidence](#testnet-transaction-evidence) |
 | **Real purchase invoice ID** | None yet. Every purchase so far was one of Bitrefill's free test products (invoices below). A paid purchase needs event credits and `BITREFILL_PURCHASES=live` |
 | **Bitrefill test-product invoices** | `7d8e4569-daa5-4de9-9a35-518b7d42c47f` (mission reward, eSIM) · `2cc79a30-29c6-423a-9d7a-8844d63b671a` (mission reward, gift card) · `306668d4-01cd-4294-a08c-a6e94641eb11` (attendee-checked reward, gift card) · `98d4f316-c3fa-482a-9137-91723064b4e5` (checkout gift card) · `3f51bca9-39bc-4579-bd51-6df1fc584d4b` (checkout eSIM). These are real API purchases of Bitrefill's free test products, and their codes can't be redeemed |
-| **Team** | [@r0bops](https://github.com/r0bops) · [@Cbiux](https://github.com/Cbiux) |
+| **Team** | Robert ([@r0bops](https://github.com/r0bops)), DevOps · Sebastián ([@Cbiux](https://github.com/Cbiux)), AI Developer |
 
 ## Table of contents
 
@@ -828,8 +828,8 @@ At runtime, Zealed uses Claude Haiku 5.5 for one job: choosing a package from th
 
 | Name | Role | Built |
 |---|---|---|
-| [@r0bops](https://github.com/r0bops) | Product and code | The app, payments, fulfillment, docs and deployment |
-| [@Cbiux](https://github.com/Cbiux) | Landing design | The sealed-chest landing page and its motion (PRs #2 and #3) |
+| Robert ([@r0bops](https://github.com/r0bops)) | DevOps | The app, payments, fulfillment, docs and deployment |
+| Sebastián ([@Cbiux](https://github.com/Cbiux)) | AI Developer | The sealed-chest landing page and its motion, and the reward-screen ideas in PR #3 |
 
 ## Feedback
 
