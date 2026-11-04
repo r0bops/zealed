@@ -4,6 +4,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { createOrderKey, rememberOrder, loadKey } from "@/lib/keystore";
 import { PaymentPanel } from "../../checkout";
 import { RewardLayout, field, button, panel, request } from "../../reward-ui";
+import { Steps } from "../../role-switch";
 import type { Choice } from "@/lib/campaigns";
 type Session = { invitation: string; publicKey?: string; secret?: string; claimId?: string };
 type Invitation = { title: string; country: string; budgetCents: number; claimed: boolean; expired: boolean; expiresAt: number; mission: { question: string; options: string[] } };
@@ -59,10 +60,12 @@ export function PlayerClaim({ campaignId }: { campaignId: string }) {
       next = { ...next, claimId: result.id }; await set(storageKey, next); setSession(next);
     });
   }
-  return <RewardLayout title={invitation?.title ?? "Your private reward"}>
+  const claimStep = !session?.claimId ? 0 : !status?.choice ? 1 : !status.orderId ? 2 : 3;
+  return <RewardLayout title={invitation?.title ?? "Claim a reward"} role="claim">
     {error && <div role="alert" className="rounded-lg border border-danger p-3 text-sm"><p className="text-danger">{error}</p><button className="min-h-11 underline" onClick={() => setReload(r => r + 1)}>Reload invitation</button></div>}
     {!invitation && !error && <p role="status">Loading invitation…</p>}
     {invitation && <><p className="text-muted">One reward up to ${(invitation.budgetCents / 100).toFixed(2)} for use in {invitation.country}. Your sponsor authorises the purchase; your browser receives the encrypted result.</p>
+      <Steps label="Your claim progress" steps={["Mission", "Pick a perk", "Sponsor approves", "Open your reward"]} current={claimStep} />
       {!session?.claimId && <form className={panel} onSubmit={complete}>
         <h2 className="text-lg font-semibold">A short privacy mission</h2>
         <p className="text-sm text-muted">A broadcast is only a request to the network. Zealed waits for confirmation and checks the recipient, amount and order memo before fulfillment.</p>

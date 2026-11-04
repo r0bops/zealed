@@ -1,12 +1,24 @@
 "use client";
 import { useEffect, useState, type FormEvent } from "react";
-import { RewardLayout, QR, field, button, panel, request } from "../reward-ui";
+import { RewardLayout, QR, QRPresenter, field, button, buttonSecondary, panel, request } from "../reward-ui";
+import { Steps } from "../role-switch";
 import { NoirPayButton } from "../noir-pay";
 import type { CatalogProduct } from "@/lib/bitrefill";
 import type { Choice } from "@/lib/campaigns";
 type Summary = { id: string; title: string; budgetCents: number; country: string; claimed: number; delivered: number; reservedCents: number; deliveredCents: number; status: string; choice: Choice | null };
 type Listing = { campaigns: Summary[]; simulatedCatalog: boolean; purchaseMode: string };
 type Payment = { id: string; to: string; amountZec: string; memo: string; zip321: string; status: string; simulated: boolean; expiresAt: number };
+const TRACK = ["Shared", "Claimed", "Perk chosen", "Paid", "Delivered"];
+/** Steps completed for one campaign, from the claim state or the order status. */
+function progress(status: string): { done: number; failed: boolean } {
+  if (status === "available") return { done: 1, failed: false };
+  if (status === "selecting" || status === "selection_failed") return { done: 2, failed: false };
+  if (["proposed", "awaiting_payment", "payment_seen"].includes(status)) return { done: 3, failed: false };
+  if (status === "expired") return { done: 3, failed: true };
+  if (status === "paid" || status === "fulfilling") return { done: 4, failed: false };
+  if (status === "delivered") return { done: 5, failed: false };
+  return { done: 4, failed: true };
+}
 export function CampaignDashboard() {
   const [token, setToken] = useState(""), [login, setLogin] = useState("");
   const [data, setData] = useState<Listing | null>(null), [error, setError] = useState("");
@@ -14,6 +26,7 @@ export function CampaignDashboard() {
   const [query, setQuery] = useState("esim"), [products, setProducts] = useState<CatalogProduct[]>([]), [selected, setSelected] = useState<string[]>([]);
   const [searched, setSearched] = useState(false), [eligibility, setEligibility] = useState(false), [busy, setBusy] = useState(false);
   const [invite, setInvite] = useState(""), [payment, setPayment] = useState<Payment | null>(null), [payCampaign, setPayCampaign] = useState("");
+  const [presenting, setPresenting] = useState<"" | "invite" | "payment">("");
   useEffect(() => {
     if (!token) return;
     let live = true;
@@ -22,7 +35,9 @@ export function CampaignDashboard() {
   }, [token]);
   async function run(action: () => Promise<void>) { setBusy(true); setError(""); try { await action(); } catch (e) { setError((e as Error).message); } finally { setBusy(false); } }
   function unlock(e: FormEvent) { e.preventDefault(); void run(async () => { const d = await request<Listing>("/api/campaigns", login); setData(d); setToken(login); setLogin(""); }); }
-  return <RewardLayout title="Sponsor a private reward">
+  const latest = data?.campaigns[0], latestProgress = latest ? progress(latest.status) : null;
+  const fundStep = !latestProgress ? 0 : [0, 1, 1, 2, 3, 4][latestProgress.done];
+  return <RewardLayout title="Fund a reward" role="fund">
     <p className="text-muted">Create one invitation. A player completes a short mission, the agent selects a perk, and you authorise the exact purchase. No deposit is held.</p>
     {error && <p role="alert" className="rounded-lg border border-danger p-3 text-sm text-danger">{error}</p>}
     {!token ? <form onSubmit={unlock} className={panel}>
@@ -30,6 +45,7 @@ export function CampaignDashboard() {
       <p className="text-xs text-muted">Use the token provided by the Zealed operator. It stays in memory for this session.</p><button disabled={busy} className={button}>{busy ? "Checking access…" : "Open organizer workspace"}</button>
     </form> : <>
       <div className="flex items-center justify-between gap-3 text-sm"><p>{data?.simulatedCatalog ? "SIMULATED catalog" : "Live catalog"} · Purchases: <strong>{data?.purchaseMode}</strong>{data?.purchaseMode === "test" && " (not redeemable)"}</p><button className="min-h-11 underline" onClick={() => { setToken(""); setData(null); setInvite(""); setPayment(null); }}>Lock workspace</button></div>
+      <Steps label="Funding progress for your latest invitation" steps={["Create invitation", "Share the QR", "Approve & pay", "Delivered"]} current={fundStep} failed={!!latestProgress?.failed} />
       <section className={panel}><h2 className="text-lg font-semibold">New invitation</h2>
         <label className="flex flex-col gap-2">Campaign name<input className={field} value={title} maxLength={80} onChange={e => setTitle(e.target.value)} /></label>
         <div className="grid gap-4 sm:grid-cols-2"><label className="flex flex-col gap-2">Destination country code<input className={field} value={country} maxLength={2} autoComplete="country" onChange={e => { setCountry(e.target.value.toUpperCase()); setSelected([]); setProducts([]); setEligibility(false); }} /></label><label className="flex flex-col gap-2">Maximum reward (USD)<input className={field} inputMode="decimal" value={budget} onChange={e => setBudget(e.target.value)} /></label></div>
@@ -46,12 +62,18 @@ export function CampaignDashboard() {
         })}>Create one-use invitation</button>
         <p className="text-xs text-muted">Expires in 24 hours. The first successful claimant reserves it. A quiz is not proof of unique humanity.</p>
       </section>
-      {invite && <section className={panel}><h2 className="font-semibold">Invitation ready</h2><QR value={invite} label="Player invitation QR code" /><a className="break-all text-sm underline" href={invite} target="_blank" rel="noreferrer">Open player invitation</a><button className={button} onClick={() => void run(() => navigator.clipboard.writeText(invite))}>Copy invitation link</button><p className="text-xs text-muted">Save this link now; its secret is not stored on the server. Share it privately with the intended player.</p></section>}
+      {invite && <section className={panel}><h2 className="text-lg font-semibold">Share with your player</h2>
+        <p className="text-sm text-muted">The player scans this with their phone camera or opens the link. Whoever claims first reserves the reward, so show it only to the intended player.</p>
+        <QR value={invite} label="Player invitation QR code" size={240} />
+        <div className="grid gap-2 sm:grid-cols-3"><button className={button} onClick={() => setPresenting("invite")}>Show QR full screen</button><button className={buttonSecondary} onClick={() => void run(() => navigator.clipboard.writeText(invite))}>Copy link</button>{"share" in navigator && <button className={buttonSecondary} onClick={() => void navigator.share({ title: "Your Zealed reward invitation", url: invite }).catch(() => undefined)}>Share…</button>}</div>
+        <a className="break-all text-sm underline" href={invite} target="_blank" rel="noreferrer">Open player invitation</a>
+        <p className="text-xs text-muted">Save this link now; its secret is not stored on the server.</p></section>}
+      {presenting === "invite" && invite && <QRPresenter value={invite} label="Player invitation QR code" title="Scan to claim your reward" hint="Point your phone camera at this code. Keep the page that opens: your reward is sealed to that browser." onClose={() => setPresenting("")} />}
       <section className="flex flex-col gap-4"><h2 className="text-xl font-semibold">Campaigns</h2>{!data?.campaigns.length && <p className="text-muted">No campaigns yet. Create an invitation above.</p>}{data?.campaigns.map(c => <article key={c.id} className={panel}>
-        <h3 className="font-semibold">{c.title}</h3><p className="text-sm">{c.claimed}/1 claimed · {c.delivered} delivered · ${(c.reservedCents / 100).toFixed(2)} reserved · ${((c.deliveredCents ?? 0) / 100).toFixed(2)} delivered value</p><p className="text-sm text-muted">Status: {c.status}</p>
+        <h3 className="font-semibold">{c.title}</h3><Steps label={`Progress for ${c.title}`} steps={TRACK} current={progress(c.status).done} failed={progress(c.status).failed} /><p className="text-sm">{c.claimed}/1 claimed · {c.delivered} delivered · ${(c.reservedCents / 100).toFixed(2)} reserved · ${((c.deliveredCents ?? 0) / 100).toFixed(2)} delivered value</p><p className="text-sm text-muted">Status: {c.status}</p>
         {c.choice && <><p className="text-sm">{c.choice.productName} · {c.choice.packageValue} · ${(c.choice.priceCents / 100).toFixed(2)}</p><p className="text-sm text-muted">{c.choice.reason}</p></>}
         {(c.status === "proposed" || c.status === "awaiting_payment") && <button className={button} disabled={busy} onClick={() => void run(async () => { const d = await request<{ payment: Payment }>(`/api/campaigns/${c.id}/approve`, token, {}); setPayment(d.payment); setPayCampaign(c.id); setData(await request<Listing>("/api/campaigns", token)); })}>{c.status === "proposed" ? "Approve exact reward & prepare payment" : "Show payment request"}</button>}
-        {payment && payCampaign === c.id && c.status === "awaiting_payment" && <div className="flex flex-col gap-3"><p className="text-sm">Payment request expires {new Date(payment.expiresAt).toLocaleTimeString()}. Confirm once in your wallet.</p><NoirPayButton key={payment.id} to={payment.to} amountZec={payment.amountZec} memo={payment.memo} simulatedDetection={payment.simulated} /><QR value={payment.zip321} label="Sponsor payment QR code" /><a className="min-h-11 break-all text-sm underline" href={payment.zip321}>Open payment in wallet</a>{payment.simulated && <p className="text-accent">SIMULATED payment detection. Not real purchase evidence.</p>}</div>}
+        {payment && payCampaign === c.id && c.status === "awaiting_payment" && <div className="flex flex-col gap-3"><p className="text-sm">Payment request expires {new Date(payment.expiresAt).toLocaleTimeString()}. Confirm once in your wallet.</p><NoirPayButton key={payment.id} to={payment.to} amountZec={payment.amountZec} memo={payment.memo} simulatedDetection={payment.simulated} /><p className="text-sm text-muted">Or scan with a testnet Zcash wallet on your phone:</p><QR value={payment.zip321} label="Sponsor payment QR code" /><div className="flex flex-wrap gap-x-5"><button className="min-h-11 text-sm underline" onClick={() => setPresenting("payment")}>Show payment QR full screen</button><a className="inline-flex min-h-11 items-center break-all text-sm underline" href={payment.zip321}>Open payment in wallet</a></div>{presenting === "payment" && <QRPresenter value={payment.zip321} label="Sponsor payment QR code" title="Scan with your Zcash wallet" hint={`${payment.amountZec} TAZ to a shielded testnet address. The memo identifies this order; keep it unchanged.`} onClose={() => setPresenting("")} />}{payment.simulated && <p className="text-accent">SIMULATED payment detection. Not real purchase evidence.</p>}</div>}
         {["failed", "failed_uncertain", "expired", "selection_failed"].includes(c.status) && <p className="text-sm text-muted">Contact the player or operator. Uncertain purchases must be reconciled before spending again.</p>}
       </article>)}</section>
     </>}
