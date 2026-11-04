@@ -24,7 +24,7 @@ const POINTS = [
 export default function Home() {
   const limits = limitsFromEnv();
   const simulated = isSimulated();
-  const hasKey = Boolean(process.env.AI_GATEWAY_API_KEY);
+  const hasKey = Boolean(process.env.ANTHROPIC_API_KEY);
 
   return (
     <main className="mx-auto grid w-full max-w-6xl flex-1 gap-10 px-4 py-8 sm:px-6 lg:grid-cols-[1fr_1.1fr] lg:py-14">

@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^4.0.96",
     "@ai-sdk/react": "^4.0.166",
     "ai": "^7.0.162",
     "better-sqlite3": "^13.0.3",

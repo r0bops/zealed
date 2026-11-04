@@ -9,8 +9,8 @@ export const maxDuration = 60;
 const LOOKS_SENSITIVE = /(\+?\d[\d\s-]{8,}\d)/;
 
 export async function POST(req: Request) {
-  if (!process.env.AI_GATEWAY_API_KEY) {
-    return Response.json({ error: "AI_GATEWAY_API_KEY is not set on the server" }, { status: 503 });
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return Response.json({ error: "ANTHROPIC_API_KEY is not set on the server" }, { status: 503 });
   }
   const body = (await req.json()) as { id?: string; messages?: unknown[] };
   const sessionId = typeof body.id === "string" ? body.id.slice(0, 64) : crypto.randomUUID();
