@@ -2,7 +2,7 @@
 import { set } from "idb-keyval";
 import { useEffect, useRef, useState } from "react";
 import { createOrderKey } from "@/lib/keystore";
-import { QR, button, buttonSecondary, panel, request } from "../reward-ui";
+import { Details, QR, button, buttonSecondary, humanizeError, panel, request } from "../reward-ui";
 
 type ClaimSession = { invitation: string; publicKey?: string; secret?: string; claimId?: string };
 type MissionInvitation = { expired: boolean; claimed: boolean; missionLabel?: string; missionAttendance?: boolean };
@@ -11,11 +11,17 @@ type Phase = "idle" | "starting" | "ready" | "submitting";
 
 const randomSecret = () => btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(32)))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 
-/** Says which mission the player faces, so a quiz fallback is never mistaken for a verified proof. */
+/** Says which mission the player faces, without putting protocol names on the main view. */
 export function MissionModeNote({ mode }: { mode?: "reclaim" | "quiz" }) {
-  return <p className="text-xs text-muted" data-mission-mode={mode ?? "quiz"}>
-    Mission mode: {mode === "reclaim" ? "Reclaim zkTLS proof of a web-account fact." : "quiz. Reclaim zkTLS verification is not configured on this server."}
+  return <p className="sr-only" data-mission-mode={mode ?? "quiz"}>
+    {mode === "reclaim" ? "This step checks one fact from an account you already use." : "Answer one short question."}
   </p>;
+}
+
+function plainLabel(label?: string): string {
+  if (!label) return "Confirm one fact from an account you already use.";
+  const cleaned = label.replace(/\s+with\s+Reclaim\.?$/i, ".").replace(/Reclaim\s*/gi, "").replace(/zkTLS\s*/gi, "").replace(/\s{2,}/g, " ").replace(/\s+\./g, ".").trim();
+  return cleaned || "Confirm one fact from an account you already use.";
 }
 
 /**
@@ -70,28 +76,31 @@ export function ReclaimVerify({ campaignId, storageKey, session, invitation, onS
     try { await flow.current?.triggerReclaimFlow(); } catch { setError("Your browser blocked the verification window. Use the link or QR code below."); }
   }
 
+  const nice = error ? humanizeError(error) : null;
   return <section className={panel} aria-busy={phase === "starting" || phase === "submitting"}>
-    <h2 className="text-lg font-semibold">{invitation.missionAttendance ? "Attendee check" : "A short verified mission"}</h2>
-    <p className="font-medium">{invitation.missionLabel ?? "Prove a fact about one of your web accounts"}</p>
-    <p className="text-sm text-muted">{invitation.missionAttendance
-      ? "Zealed checks the event, approval status and attendee identifier in your proof in memory. We store only a keyed one-way code to prevent repeat claims; the proof and account details are not stored."
-      : "Reclaim creates a zkTLS proof from your own logged-in session. Zealed checks the proof once to reserve your reward and does not store the account details inside it."}</p>
-    {error && <p role="alert" className="text-sm text-danger">{error}</p>}
+    <h2 className="text-lg font-semibold">{invitation.missionAttendance ? "Attendee check" : "Confirm this step"}</h2>
+    <p className="text-base font-medium">{plainLabel(invitation.missionLabel)}</p>
+    <p className="text-base text-muted">{invitation.missionAttendance
+      ? "We check that you’re on the approved list, then reserve the reward. Account details are not stored."
+      : "You’ll confirm one fact in a window we open. We don’t store the account details."}</p>
+    {nice && <p role="alert" className="text-base text-danger">{nice.text}</p>}
+    {nice?.detail && <Details><p className="font-mono text-xs">{nice.detail}</p></Details>}
     {phase === "idle" || phase === "starting"
       ? <button className={button} disabled={blocked || phase === "starting"} onClick={() => void start()}>
-          {phase === "starting" ? "Preparing verification…" : invitation.claimed && !session?.secret ? "Invitation already claimed" : "Start Reclaim verification"}
+          {phase === "starting" ? "Preparing this step…" : invitation.claimed && !session?.secret ? "Invitation already claimed" : error ? "Try again" : "Start verification"}
         </button>
       : phase === "submitting"
-        ? <p role="status">Proof received. Checking it and reserving your reward…</p>
+        ? <p role="status" className="text-base">Checking that step and reserving your reward…</p>
         : <>
-            <button className={button} onClick={() => void open()}>Open Reclaim verification</button>
-            <p role="status" className="text-sm text-muted">Waiting for your proof. Keep this page open; it continues automatically.</p>
-            {link && <details className="text-sm"><summary className="min-h-11 cursor-pointer py-2">Verify on your phone or open the link yourself</summary>
-              <div className="flex flex-col items-start gap-3 pt-2"><QR value={link} label="QR code for the Reclaim verification" size={180} />
-                <a className={buttonSecondary + " inline-flex items-center"} href={link} target="_blank" rel="noopener noreferrer">Open verification link</a></div>
-            </details>}
-            <button className="min-h-11 self-start text-sm underline" onClick={() => void start()}>Start over</button>
+            <button className={button} onClick={() => void open()}>Continue verification</button>
+            <p role="status" className="text-base text-muted">Keep this page open. It finishes on its own.</p>
+            {link && <Details>
+              <p>Or do this step on your phone.</p>
+              <QR value={link} label="QR code for verification" size={180} />
+              <a className={buttonSecondary} href={link} target="_blank" rel="noopener noreferrer">Open the link</a>
+            </Details>}
+            <button type="button" className={buttonSecondary} onClick={() => void start()}>Start over</button>
           </>}
-    <p className="text-xs text-muted">Five attempts per invitation. A proof that fails verification uses one.</p>
+    <p className="text-sm text-muted">You can try five times.</p>
   </section>;
 }

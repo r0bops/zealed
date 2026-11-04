@@ -3,7 +3,7 @@ import Link from "next/link";
 import { get, keys } from "idb-keyval";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { RewardLayout, field, button, buttonSecondary, panel, request } from "../reward-ui";
-import { Steps } from "../role-switch";
+import { ClaimStepper } from "../claim-stepper";
 
 type Saved = { id: string; title: string | null; claimed: boolean };
 type Detector = { detect(source: HTMLVideoElement): Promise<{ rawValue: string }[]> };
@@ -53,7 +53,7 @@ function Scanner({ onFound, onClose }: { onFound: (path: string) => void; onClos
   return <div className="flex flex-col gap-3">
     <video ref={video} muted playsInline className="aspect-square w-full max-w-sm rounded-lg bg-foreground object-cover" aria-label="Camera preview for QR scanning" />
     <p role="status" className="text-sm text-muted">{message}</p>
-    <button className={buttonSecondary} onClick={onClose}>Stop camera</button>
+    <button type="button" className={buttonSecondary} onClick={onClose}>Stop camera</button>
   </div>;
 }
 
@@ -85,26 +85,26 @@ export function ClaimEntry() {
     if (!path) { setError("Use the complete Zealed invitation link from your sponsor, including the part after #."); return; }
     open(path);
   }
-  return <RewardLayout title="Claim a reward" role="claim">
-    <p className="text-muted">Your sponsor shares a private invitation as a QR code or a link. You need no wallet and no account: the reward is sealed to this browser.</p>
-    <Steps label="What happens after you open the invitation" steps={["Mission", "Pick a perk", "Sponsor approves", "Open your reward"]} current={-1} />
+  return <RewardLayout title="Claim reward" role="claim">
+    <ClaimStepper current={0} />
+    <p className="text-muted">Your sponsor shares a private invite as a QR code or a link. You don’t need a wallet or an account. The reward stays in this browser.</p>
     {saved.length > 0 && <section className={panel}>
       <h2 className="text-lg font-semibold">Continue on this browser</h2>
-      <ul className="flex flex-col divide-y divide-line">{saved.map(s => <li key={s.id}><Link href={`/claim/${s.id}`} className="flex min-h-11 items-center justify-between gap-3 py-2 text-sm hover:underline"><span>{s.title ?? "Invitation unavailable or expired"}<span className="block font-mono text-xs text-muted">{s.id.slice(0, 8)} · {s.claimed ? "claimed" : "not claimed yet"}</span></span><span aria-hidden>→</span></Link></li>)}</ul>
+      <ul className="flex flex-col divide-y divide-line">{saved.map(s => <li key={s.id}><Link href={`/claim/${s.id}`} className="flex min-h-12 items-center justify-between gap-3 py-2 text-base hover:underline"><span>{s.title ?? "Invite unavailable or expired"}<span className="block text-sm text-muted">{s.claimed ? "Started" : "Not started yet"}</span></span><span aria-hidden>→</span></Link></li>)}</ul>
     </section>}
-    <section className={panel}>
-      <h2 className="text-lg font-semibold">Scan the QR code</h2>
-      {canScan === false && <p className="text-sm text-muted">Point your phone’s camera at the sponsor’s QR code. It opens your invitation directly, with no app to install.</p>}
-      {canScan && !scanning && <button className={button} onClick={() => setScanning(true)}>Scan with camera</button>}
-      {canScan && scanning && <Scanner onFound={open} onClose={() => setScanning(false)} />}
-      <p className="text-xs text-muted">Scanning happens on this device. Camera images are never uploaded.</p>
-    </section>
     <form className={panel} onSubmit={submit}>
-      <h2 className="text-lg font-semibold">Or paste the link</h2>
-      <label className="flex flex-col gap-2 text-sm">Invitation link<input className={field} type="text" inputMode="url" autoComplete="off" autoCapitalize="none" spellCheck={false} required value={link} placeholder="https://…/claim/…#…" aria-invalid={!!error} onChange={e => { setLink(e.target.value); setError(""); }} /></label>
-      {error && <p role="alert" className="text-sm text-danger">{error}</p>}
+      <h2 className="text-lg font-semibold">Paste your invite link</h2>
+      <label className="flex flex-col gap-2 text-base">Invite link<input className={field} type="text" inputMode="url" autoComplete="off" autoCapitalize="none" spellCheck={false} required value={link} placeholder="https://…/claim/…#…" aria-invalid={!!error} onChange={e => { setLink(e.target.value); setError(""); }} /></label>
+      {error && <p role="alert" className="text-base text-danger">{error}</p>}
       <button className={button}>Open invitation</button>
-      <p className="text-xs text-muted">Keep your invitation private: whoever claims it first reserves the reward.</p>
+      <p className="text-sm text-muted">Keep your invite private. The first person to open it gets the reward.</p>
     </form>
+    <section className={panel}>
+      <h2 className="text-lg font-semibold">Or scan the QR code</h2>
+      {canScan === false && <p className="text-base text-muted">Point your phone’s camera at the sponsor’s QR code. It opens your invite directly.</p>}
+      {canScan && !scanning && <button type="button" className={buttonSecondary} onClick={() => setScanning(true)}>Scan a QR code</button>}
+      {canScan && scanning && <Scanner onFound={open} onClose={() => setScanning(false)} />}
+      <p className="text-sm text-muted">Scanning stays on this device. Camera images are never uploaded.</p>
+    </section>
   </RewardLayout>;
 }
