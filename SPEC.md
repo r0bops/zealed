@@ -4,7 +4,7 @@ An organizer defines required quizzes, social actions or custom tasks. A partici
 
 ## Product scope
 
-- `/campaigns`: organizer access, catalog search, campaign creation, invitation QR, status and sponsor approval/payment.
+- `/campaigns`: sponsor access (Start funding or the operator token), catalog search, campaign creation, invitation QR, status and sponsor approval/payment.
 - `/claim`: open an invitation or resume one saved on this browser.
 - `/claim/[id]`: mission, reward preferences, agent selection and delivery.
 - `/orders` and `/order/[id]`: existing order status and local decryption.
@@ -14,7 +14,7 @@ An organizer defines required quizzes, social actions or custom tasks. A partici
 
 ## Reward flow
 
-1. An organizer authenticates with `CAMPAIGN_ADMIN_TOKEN` and configures 1–10 required tasks and prize options. Bitrefill prizes require a destination, budget, one to five allowed products covering each offered type, and issuer checks. Other prizes need no catalog.
+1. A sponsor authenticates with an anonymous sponsor key or the operator's `CAMPAIGN_ADMIN_TOKEN`, then configures 1–10 required tasks and prize options. **Start funding** creates the sponsor key in the browser (localStorage); the server stores only its SHA-256 hash. It works only when `SPONSOR_OPEN_ACCESS=1` and purchases aren't live. Each sponsor key sees and manages only its own campaigns (others answer 404); open sponsors are capped at $5 per campaign, 5 campaigns per day and 300 new sessions per day site-wide. The operator token sees every campaign. Bitrefill prizes require a destination, budget, one to five allowed products covering each offered type, and issuer checks. Other prizes need no catalog.
 2. The server generates a random invitation token and stores its hash. The share link carries the token in its URL fragment.
 3. The player creates a browser X25519 key and a separate claim-access secret. Both survive same-browser reloads in IndexedDB.
 4. Joining atomically reserves the invitation. Quiz answers are HMAC-checked on the server; social/custom evidence URLs require organizer review. Every task must pass before a single immutable prize reservation. Each task permits five submissions. Legacy invitations keep their fixed quiz, email-list or Reclaim mission; global `MISSION_MODE` does not apply to new checklists. Quizzes and public links do not establish identity or unique humanity.
@@ -41,7 +41,8 @@ Custom rewards instead let the organizer seal instructions to the participant’
 
 ## Privacy and trust
 
-- Browser keys, claim secrets and invitation tokens are capabilities. Losing browser storage can lose access; a key backup alone does not restore claim authorization on another device.
+- Browser keys, claim secrets, invitation tokens and sponsor keys are capabilities. Losing browser storage can lose access; a key backup alone does not restore claim authorization on another device. Sponsor keys do not expire.
+- The USD daily cap is global, so open sponsors share it. Exhausting it denies service for the day but cannot spend real funds, because open access is off when purchases are live.
 - The database stores campaign/order metadata, hashed invitation and claim secrets, recipient public keys, payment references and encrypted redemption payloads. It is not metadata-private.
 - The sponsor sees task evidence, product, package, price, counts and payment state. Custom delivery additionally exposes the public encryption key; direct TAZ delivery exposes the address and reported txid. Sponsor responses omit private keys, claim secrets and redemption ciphertext. The server stores task configuration, answer HMACs, evidence, approvals and prize reservations.
 - The model receives country, structured preferences and eligible package metadata. It receives no player identity, decryption key or redemption code.
@@ -59,4 +60,4 @@ Tables: campaigns, reward_claims, campaign_programs, mission_results, prize_rede
 
 Run `pnpm test`, `pnpm typecheck` and `pnpm lint` for automated checks. `pnpm build` produces standalone output and removes environment-file copies, rejecting accidental local databases. Runtime credentials and storage must be supplied separately. `pnpm e2e:rewards` performs a real testnet payment and may purchase through Bitrefill according to server configuration; run it only with explicit purchase authorization.
 
-README records historical live testnet/test-product evidence and distinguishes unverified features. Paid real-product delivery, public deployment, multi-claim campaigns, cross-device claim recovery and stronger eligibility are outstanding work.
+The public deployment is https://tryzealed.xyz, with Bitrefill purchases in test mode. README records historical live testnet/test-product evidence and distinguishes unverified features. Paid real-product delivery, multi-claim campaigns, cross-device claim recovery and stronger eligibility are outstanding work.

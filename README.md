@@ -14,7 +14,7 @@ DRAFT. Before submitting:
 
 Zealed is an event rewards system: organizers define a checklist of quizzes, social-media actions and custom tasks. Participants must complete every required task before choosing a prize: a Bitrefill gift card, an eSIM, a shielded Zcash testnet payout or an organizer-defined reward.
 
-**Implemented locally:** configurable task checklists, organizer review, one-prize redemption, encrypted custom instructions and organizer-reported testnet payouts. Automated checks cover these paths; the historical live Bitrefill evidence below applies to the earlier single-mission flow. New multi-task Bitrefill delivery and direct Zcash payouts have not been run on the live services.
+**Implemented and deployed:** configurable task checklists, organizer review, one-prize redemption, encrypted custom instructions and organizer-reported testnet payouts. They run at [tryzealed.xyz](https://tryzealed.xyz), where Bitrefill purchases are in test mode. Automated checks cover these paths; the historical live Bitrefill evidence below applies to the earlier single-mission flow. New multi-task Bitrefill delivery and direct Zcash payouts have not been run on the live services.
 
 - Organizers configure immutable mission requirements and available reward types per invitation. The existing one-participant, one-use invitation limit remains; create separate invitations for additional participants.
 - Quiz answers are checked on the server; answer keys are omitted from participant responses. Pass/fail feedback and five attempts do not prevent guessing or answer sharing.
@@ -24,6 +24,9 @@ Zealed is an event rewards system: organizers define a checklist of quizzes, soc
 - Zcash prizes are direct shielded **testnet TAZ** transfers from the sponsor wallet to the participant's address. A submitted transaction is not treated as confirmed delivery; participant acknowledgment is recorded separately. Automatic chain verification and mainnet payouts are outside this extension.
 - Custom rewards are fulfilled by the organizer. Private instructions/codes are encrypted in the organizer's browser to the participant's key. Physical fulfillment is explicitly organizer-managed.
 - Social evidence and payout addresses are visible to the organizer and server. Do not submit passwords, private account data or redemption codes as task evidence.
+- Sponsors start with **Start funding**, with no account or token. The browser creates an anonymous sponsor key and keeps it in localStorage; the server stores only its SHA-256 hash. Each sponsor lists, reviews and approves only the campaigns it created, and other sponsors' campaigns answer 404. Open sponsors are capped at $5 per campaign and 5 campaigns a day, with 300 new sponsor sessions a day site-wide. Open access switches off automatically when purchases are set to live. The operator token still works as an override that sees every campaign.
+- The landing page offers two role cards, **Fund a reward** and **Claim a reward**. `/claim` scans the invitation QR inside the app where the browser supports it, accepts a pasted link, and lists claims saved in this browser. Sponsors can show the invitation QR full screen.
+- **One-time sealed gift links (built, not live yet).** A participant can pass a delivered reward to a friend through any chat, Telegram included. The friend's browser opens the link and creates a key. The giver confirms the friend's key code, then re-seals the reward to that key in their own browser. The friend's browser opens it once, and the server deletes the row in the same transaction. Details are in [section 5](#5-privacy-and-trust).
 - Organizer, participant and order pages adopt the dark, gold, pixel-grid landing theme with responsive forms and navigation.
 
 **Public access:** standalone shopping chat and checkout are disabled (`POST /api/agent` and `POST /api/orders` return 410). `/chat` redirects to `/claim`; existing orders remain accessible at `/orders`. The agent selects rewards only through authenticated campaign claims. The shopping UI, agent tools, signed proposals and obsolete shopping scripts have been removed. Earlier checkout transaction evidence is retained as historical evidence.
@@ -45,7 +48,7 @@ A paid purchase of a real (non-test) product is still to come.
 | **Privacy theme** | 1. Private payment rails (checkout matched by memo) |
 | **Bitrefill lane** | 5, Private by default, with mission-triggered fulfillment and gift on claim |
 | **What it is** | Organizer/player mission rewards; standalone shopping disabled |
-| **Live URL** | TODO: https://… |
+| **Live URL** | https://tryzealed.xyz (also https://www.tryzealed.xyz). Bitrefill purchases there run in **test mode**, so codes aren't redeemable. Sponsors start with **Start funding**; no token is needed |
 | **Demo video** | TODO: https://… (2–3 minutes) |
 | **Testnet txid** | `1843616532cee751cbe556e902723d47b6675b6c92300b24070b8b6d1961f9ca`: a sponsor's shielded payment authorising a mission reward, mined at height 4581978. [zexplorer](https://zexplorer.app/testnet/tx/1843616532cee751cbe556e902723d47b6675b6c92300b24070b8b6d1961f9ca) · [zcashexplorer](https://testnet.zcashexplorer.app/transactions/1843616532cee751cbe556e902723d47b6675b6c92300b24070b8b6d1961f9ca). The first checkout payment was `1bb9548ea9ee04da491071e86f7287391aa52f3260c51ce6219324615768defd` (height 4581712). <!-- TODO: on 4 Nov, zexplorer's testnet index stopped at 4505881, so it shows "not found". Check the zcashexplorer link in a browser before submitting. --> |
 | **Real purchase invoice ID** | TODO: needs event credits and `BITREFILL_PURCHASES=live` |
@@ -82,7 +85,7 @@ A paid purchase of a real (non-test) product is still to come.
 
 **Legacy invitations:** existing campaigns without a task checklist keep their fixed quiz, email-list attendance check (`MISSION_MODE=email`), or optional Reclaim zkTLS mission. These global modes do not apply to new checklist campaigns. The email check proves allowlist membership, not ownership of an email address; live Reclaim proof completion remains unverified.
 
-**Implemented claim controls:** hashed invitation tokens, expiry, authenticated organizer access, atomic single-use claims, backend product restrictions, five mission-answer attempts, at most three model-selection attempts, and recovery of uncertain purchases with known invoice IDs without buying again. Claim read access uses a separate secret stored in the player’s browser; invitation and claim secrets are hashed on the server. A public QR can be copied; one claim per key is not one claim per human. Invitation limits bound spending but do not prove attendance or prevent answer sharing.
+**Implemented claim controls:** hashed invitation tokens, expiry, authenticated sponsor access (an anonymous sponsor key or the operator token), atomic single-use claims, backend product restrictions, five mission-answer attempts, at most three model-selection attempts, and recovery of uncertain purchases with known invoice IDs without buying again. Claim read access uses a separate secret stored in the player’s browser; invitation and claim secrets are hashed on the server. A public QR can be copied; one claim per key is not one claim per human. Invitation limits bound spending but do not prove attendance or prevent answer sharing.
 
 **Candidate perks for international participants.** Our Bitrefill account's access to these isn't verified yet:
 
@@ -99,12 +102,25 @@ Zealed doesn't promise "global, no-KYC" perks. It avoids collecting names and em
 
 ## 3. Run and try Zealed
 
-### Mission rewards
+### Try the live site
 
-1. Set `CAMPAIGN_ADMIN_TOKEN` to a random secret of at least 32 characters in `.env.local`. Keep it out of Git and share it only with the trusted organizer. Set the existing model, wallet and Bitrefill configuration as described below. The organizer token is held in browser memory after login, not placed in URLs.
+Bitrefill purchases on https://tryzealed.xyz run in test mode: real API calls for Bitrefill's test products, whose codes can't be redeemed.
+
+1. Open https://tryzealed.xyz and choose **Fund a reward**. Click **Start funding**. Your browser creates an anonymous sponsor key; there's no sign-up. Clearing this site's data loses access to your campaigns.
+2. Create a campaign: tasks, prize types and, for gift cards or eSIMs, a budget of up to $5 and the allowed products. Open sponsors can create 5 campaigns a day.
+3. Share the invitation link or show its QR full screen. On another device or browser, open it, or choose **Claim a reward** and scan or paste it at `/claim`.
+4. Complete the tasks as the participant, then review them on the sponsor side. When every task passes, the participant picks one prize.
+5. A gift card or eSIM needs the sponsor to approve the exact package and pay the shielded testnet request from a NU7 testnet wallet. The participant's browser then decrypts the delivered test code.
+
+### Run it yourself
+
+1. Choose how sponsors get in, in `.env.local`:
+   - **Open sponsors:** `SPONSOR_OPEN_ACCESS=1` shows **Start funding** on `/campaigns`. It works only while `BITREFILL_PURCHASES` isn't `live`. Optional caps: `OPEN_SPONSOR_MAX_CENTS` (default 500, so $5 per campaign), `OPEN_SPONSOR_CAMPAIGNS_PER_DAY` (5) and `OPEN_SPONSOR_SESSIONS_PER_DAY` (300 site-wide).
+   - **Operator override:** `CAMPAIGN_ADMIN_TOKEN`, a random secret of at least 32 characters, sees every campaign. Keep it out of Git and share it only with a trusted organizer. It's held in browser memory after login, not placed in URLs. It's required when open access is off.
+   - Set the model, wallet and Bitrefill configuration as described below.
    - **For the attendee mission:** set `MISSION_MODE=email` and `LUMA_EVENT_ID`, then import the guest list with `npx tsx --env-file=.env.local scripts/attendees-import.ts <luma-guests.csv>`. It keeps approved guests only and stores hashes, never emails.
    - **To try it without a real list:** import `demo/luma-guests-demo.csv` (fictional `example.org` guests), then claim as `judge@example.org`. `carol@example.org` is pending and `dave@example.org` is declined, so both are refused.
-2. Open `/campaigns`, unlock with that token, configure required quizzes/social/custom tasks and select prize types. For gift cards/eSIMs, allow 1–5 catalog products, including each offered type; verify issuer restrictions and set a budget up to $20. Custom-only or Zcash-only campaigns do not need catalog access. Quiz checks require the configured `FULFILL_SECRET_KEY` or an explicit `TOOL_APPROVAL_SECRET` on the server.
+2. Open `/campaigns`, click **Start funding** or unlock with the operator token, configure required quizzes/social/custom tasks and select prize types. For gift cards/eSIMs, allow 1–5 catalog products, including each offered type; verify issuer restrictions and set a budget up to $20 ($5 for open sponsors). Custom-only or Zcash-only campaigns do not need catalog access. Quiz checks require the configured `FULFILL_SECRET_KEY` or an explicit `TOOL_APPROVAL_SECRET` on the server.
 3. Create a one-use invitation. Save its link immediately: the server stores only its hash. Its secret travels in the URL fragment, is stored locally by the player, and is removed from the address bar. Treat it as a bearer invitation: anyone holding it can reserve the claim.
 4. Open the invitation on a separate browser/device, join, answer quizzes and submit public evidence. Use **Review tasks & fulfill prize** in the organizer workspace to approve or reject evidence. When all tasks pass, the participant reserves a prize.
 5. For Bitrefill, the participant asks the agent to select a package; the organizer approves and pays the exact shielded testnet request. For custom rewards, the organizer uses **Seal & send instructions**. For Zcash, send once from the organizer wallet, then record the txid; recording it is not on-chain verification. Model credentials are needed only for Bitrefill selection.
@@ -119,6 +135,7 @@ Zealed doesn't promise "global, no-KYC" perks. It avoids collecting names and em
 - Prices are re-checked at approval and at purchase. They may rise by at most 5% from the approved price (BTC/USD moves between steps), and never above the campaign budget or the per-order cap.
 - An uncertain purchase is reconciled before anything else is bought.
 - Cross-device claim recovery isn't built. A backup of the decryption key alone doesn't restore the separate claim secret.
+- A sponsor key lives in that browser's localStorage. Clearing site data loses access to that sponsor's campaigns; the operator token still sees them.
 
 **Run it locally:**
 
@@ -177,10 +194,13 @@ pnpm zkool:pay 'zcash:utest1…?amount=…&memo=…'
 | Mission proved with a Reclaim zkTLS proof instead of the quiz | 🟡 built and tested with mocked proofs; no live proof yet | `lib/reclaim.ts`, `app/claim/reclaim-verify.tsx`, `lib/reclaim.test.ts`. The proof is bound to the claim by a hash of the campaign and the player's key, then checked with Reclaim's `verifyProof` plus provider and freshness checks. Only `{verified, providerId}` is kept. A custom Reclaim provider for Luma (`10103ed6-3256-4a96-a2ae-d5230df0a649`) proves only the event ID, the approval status and the ticket key. Our server can create proof requests with our credentials, but no player has completed a live proof. It's inactive while `MISSION_MODE=email` |
 | One reward per approved Luma attendee, without storing who they are | 🟡 built and tested; the Reclaim variant isn't live | The nullifier is a keyed HMAC of the event ID and a per-guest value: the email hash in the attendee mission, or the Luma user or ticket key in a Reclaim proof. It's kept in `attendance_nullifiers` (unique per event) and written in the same transaction as the claim, so the same attendee gets a 409 on another campaign |
 | Attendee check against the organizer's imported Luma guest list | ✅ real on NU7 testnet, with a Bitrefill **test product** | `lib/attendees.ts`, `lib/attendee-hash.ts`, `app/claim/email-verify.tsx`, `scripts/attendees-import.ts`, `lib/attendees.test.ts`. The browser hashes `zealed:attendee:v1:<event>:<email>` with WebCrypto, and the server stores only the approved guests' hashes. **Live run (4 Nov, fictional demo list):** campaign `eab0e7a0`, claim `b8357326`. Only the browser-side hash of `bob@example.org` was sent, and the player appeared as "Attendee EBAF-F4BD". The agent chose Flipkart India ₹50 ($0.56). Order `123e9bf7`: 0.01867583 TAZ, txid `f1fa38e3bd4f2b7ce6225aa1911051c94652d7fab770ecbdddbb260f3d60631b` (height 4582200). Invoice `306668d4-01cd-4294-a08c-a6e94641eb11`, decrypted by the player 76 s after sending. The same email on a new campaign got 409 "This attendee has already claimed a reward." A scan of every database table found no email address |
-| Rate limiting on public reward mutations | ✅ implemented and tested | `lib/rate-limit.ts`. Per client per minute: claim 10, agent selection 6, Reclaim request 10, approval 20, campaign creation 20, invitation 60, order status 120, program action 20 and organizer review/delivery 30. Counters live in memory under salted-hash keys; over-limit requests get 429 with `Retry-After` |
+| Rate limiting on public reward mutations | ✅ implemented and tested | `lib/rate-limit.ts`. Per client per minute: claim 10, agent selection 6, Reclaim request 10, approval 20, campaign creation 20, campaign list 60, Start funding 5, invitation 60, order status 120, program action 20 and organizer review/delivery 30. Counters live in memory under salted-hash keys; over-limit requests get 429 with `Retry-After` |
+| Sponsor access with **Start funding** instead of a token | ✅ implemented, tested and deployed (test purchases only) | `lib/campaigns.ts` (`requireSponsor`, `ownedCampaign`), `app/api/sponsors/route.ts`, `lib/sponsors.test.ts`, `lib/sponsors-security.test.ts`. Tests cover: another sponsor's campaign answers 404 on every management route, forged or malformed keys get 401, existing sessions stop working when open access is off or purchases go live, the operator token sees every campaign, open-sponsor caps, hash-only key storage, and the Start funding rate limit. On tryzealed.xyz, `GET /api/sponsors` reports open access with a $5 per-campaign cap |
+| Public deployment | ✅ live at https://tryzealed.xyz, Bitrefill test mode | A read-only smoke test there passed: the landing, `/campaigns`, `/claim` and `/orders` pages load, unauthenticated campaign listing gets 401, unknown campaigns and orders get 404, and the rate limit answers 429 with `Retry-After`. No full checklist campaign on the live site is recorded here yet |
+| One-time sealed gift links (pass a delivered reward to a friend) | 🟡 built and tested; not yet linked from the order page and not live on the public site until the next deploy | `lib/gift-links.ts`, `lib/gift-envelope.ts`, `app/api/gifts/`, `app/gift/`, `lib/gift-links.test.ts`. Tests cover create → accept → seal → open returning the blob exactly once, first-accept-only (409 after), 404 for wrong tokens or roles, sealing only to the accepted key, cancel, expiry sweeps and the creation rate limit. An end-to-end test re-seals a reward to the friend's key and checks that the plaintext never reaches the database |
 | FROST 2-of-3 sponsor treasury (organizer, co-sponsor, Zealed) | 🟡 built and tested against mocked zkool instances; a live DKG hasn't run | `lib/frost.ts`, `pnpm frost:setup`, `pnpm frost:pay`, using zkool's `dkgStart`, `dkgSetAddress` and `frostSign`. The DKG runs over shielded memos (about 3–15 min) and signing takes about 2–10 min. It needs three zkool instances. Risk: zkool's DKG mailbox addresses may be Orchard-only, which can't receive on NU7. Unverified |
 
-**Reward verification:** 122 automated tests pass across fifteen files. Coverage includes spending and payment boundaries, legacy attendance, all-task gating, organizer review, rejected submissions, immutable prize choice, encrypted custom delivery, payout recording and expiry. TypeScript, lint and the production build pass. An isolated browser check exercised the full quiz + social task → custom reward flow against real local routes and SQLite, including decryption and reload recovery. Landing, organizer, participant, invitation, history and order pages were checked at 320/375/768/1440 px without horizontal overflow. No external purchase or payout occurred in these checks. Deployment of this extension is unverified; historical live evidence is listed separately.
+**Reward verification:** 140 automated tests pass across 18 files. Coverage includes spending and payment boundaries, legacy attendance, all-task gating, organizer review, rejected submissions, immutable prize choice, encrypted custom delivery, payout recording, expiry, sponsor isolation and one-time gift links. CI runs install, typecheck, lint and these tests on every push and pull request. TypeScript, lint and the production build pass. An isolated browser check exercised the full quiz + social task → custom reward flow against real local routes and SQLite, including decryption and reload recovery. Landing, organizer, participant, invitation, history and order pages were checked at 320/375/768/1440 px without horizontal overflow. No external purchase or payout occurred in these checks. The extension is deployed at https://tryzealed.xyz, but no full checklist campaign has been run there yet; historical live evidence is listed separately.
 
 **Known limitations:**
 - New social/custom tasks require human review of public links; no social-platform API or account-ownership verification is implemented. Public links may reveal identity.
@@ -190,6 +210,9 @@ pnpm zkool:pay 'zcash:utest1…?amount=…&memo=…'
   - The attendee check proves that an email is on the organizer's list, not that the player owns it. That's what a live Reclaim proof would add. Anyone who already has candidate emails can guess the hashes.
   - The real campaign runs bought Bitrefill's free test products. A paid real product is still to come.
 - Rate limits live in one server process's memory, so they reset when it restarts.
+- The guardrail daily spend cap ($25 by default) is global, not per sponsor. One open sponsor could use up the day's test budget for everyone. That's a denial of service, not a loss of funds, because open access is off when purchases are live.
+- Sponsor keys don't expire and sit in localStorage, so an XSS bug would expose them. Clearing site data loses access to your sponsor campaigns.
+- A sealed gift link can't revoke the giver's own copy of the code. Deleted gift ciphertext may linger in SQLite free pages or the WAL until it's overwritten.
 - The current payment memo binds one exact order and recipient key. One campaign deposit cannot authorize arbitrary future claims without new accounting and authorization logic.
 - The payment watcher cannot sign refunds. Automatic returns and pooled campaign funding require a separate design.
 - A `fake` Zcash backend exists for local development only. It's labelled SIMULATED in the UI, it's refused in production, and it's never used in the demo.
@@ -210,14 +233,14 @@ pnpm zkool:pay 'zcash:utest1…?amount=…&memo=…'
    - Phone numbers are encrypted in the browser and stored only as ciphertext. They're decrypted only for the Bitrefill call, then wiped.
 2. **What does the app reveal, and to whom?**
    - **The light-wallet server** (`testnet.zec.rocks`) sees our watcher's IP address and sync timing. The buyer's wallet uses its own light-wallet server, which sees the buyer's IP address.
-   - **Our server** stores order metadata: product, price, ZEC amount, memo tag, cart hash, the buyer's public key, txid, block height, Bitrefill invoice and order IDs, and ciphertext. A sealed phone number sits next to its order (and its txid) until fulfillment, then it's wiped. The agent log keeps a hashed session ID, event names and metadata only, never chat text. For mission rewards, it also stores each campaign (title, country, budget, allowlist, hashed invitation) and each claim (hashed claim secret, the player's public key, preferences and the chosen package), task configurations and answer HMACs, public evidence URLs, review results, prize reservations and any payout address/reported txid. A claim points to the sponsor's order, so the player's key is linked to that order and its txid. For the attendee mission, it also stores SHA-256 hashes of the approved guests' emails (never the emails) and one keyed nullifier per claimed attendee. The organizer runs the guest-list import on the server, so the exported CSV passes through the operator's machine. Rate-limit counters are kept in memory under salted hashes, never as IP addresses.
+   - **Our server** stores order metadata: product, price, ZEC amount, memo tag, cart hash, the buyer's public key, txid, block height, Bitrefill invoice and order IDs, and ciphertext. A sealed phone number sits next to its order (and its txid) until fulfillment, then it's wiped. The agent log keeps a hashed session ID, event names and metadata only, never chat text. For mission rewards, it also stores each campaign (title, country, budget, allowlist, hashed invitation) and each claim (hashed claim secret, the player's public key, preferences and the chosen package), task configurations and answer HMACs, public evidence URLs, review results, prize reservations and any payout address/reported txid. A claim points to the sponsor's order, so the player's key is linked to that order and its txid. For the attendee mission, it also stores SHA-256 hashes of the approved guests' emails (never the emails) and one keyed nullifier per claimed attendee. The organizer runs the guest-list import on the server, so the exported CSV passes through the operator's machine. For open sponsors, it stores the SHA-256 hash of each sponsor key with its creation time, and each campaign records its owner's hash. For a sealed gift link, it stores SHA-256 hashes of three tokens (the link, which only lets the friend register a browser key; the giver's token, which seals or cancels; and the accepting browser's token, which opens), the friend's public key and the ciphertext. It keeps no order, wallet, txid or link to the giver. Opening is a one-time read that deletes the row in the same transaction, and unopened gifts are deleted after `GIFT_TTL_HOURS` (default 72). The app's rate-limit counters are kept in memory under salted hashes, never as IP addresses. The web server in front of it (nginx) does write standard access logs for the whole machine: client IP address, time, requested path and user agent.
    - **The fulfillment function** holds the plaintext code or phone number in memory for the duration of the Bitrefill call, then seals or wipes it.
    - **Bitrefill** sees the purchase, the phone number for top-ups and our account. It can re-fetch codes by order ID.
    - **The AI model provider** (Anthropic) receives the campaign's country, the player's structured preferences (purpose, number of days, whether the phone supports eSIM) and the allowed packages with prices. It gets no name, email, key or code, and no tools.
    - **The organizer** sees task submissions, reward choice and delivery state. For custom delivery, the organizer receives the participant’s public encryption key and knows the instructions they issue; private keys and Bitrefill codes stay out of organizer responses. For direct Zcash payouts, the organizer and server see the destination address, configured amount and reported txid.
    - **The buyer's wallet** (for example Noir) sees the recipient address, amount and memo.
    - **The BTC price feeds** (Coinbase, with Kraken as a backup) see our server's IP address. No user data is sent to them.
-   - **The host:** TODO, name the hosting provider.
+   - **The host:** a VPS operated by the team, running Ubuntu. nginx terminates TLS with a Let's Encrypt certificate and proxies to the Next.js standalone server on 127.0.0.1:3100, which runs the payment watcher in the same process. `zkool_graphql` runs on 127.0.0.1:8000 as a watch-only wallet: it holds the viewing key, never a seed or spending key. The SQLite database sits on the server's disk. Both services run under systemd. Whoever controls the machine (the team, and the VPS provider underneath it) can read everything the server stores. Purchases there run in Bitrefill test mode.
    - **Reclaim** (only if the Reclaim mission is turned on): its servers and attestors see the proved values during verification. Anyone holding Zealed's server secret and a guest's Luma user ID could link that guest to their claim.
    - **FROST treasury** (not live yet): the participants' wallets exchange the key-generation and signing messages as shielded memos.
 3. **Who do users have to trust?**
@@ -226,7 +249,8 @@ pnpm zkool:pay 'zcash:utest1…?amount=…&memo=…'
    - Bitrefill.
    - Anthropic.
    - The light-wallet servers.
-   - The host.
+   - The host: the team's VPS and its provider.
+   - The sponsor's own browser, which holds the sponsor key in localStorage.
 4. **What would we fix next?**
    - Route the watcher's traffic through Nym.
    - Delete order metadata after delivery.
@@ -248,11 +272,12 @@ pnpm zkool:pay 'zcash:utest1…?amount=…&memo=…'
   - **Built:** the client, the purchase modes (simulate, test and live), the fulfillment state machine, guardrails, approvals, sealing and reconciliation. **Reused:** the Bitrefill catalog, balance payments and test products.
 - **Payment method:** account balance (event credits). Bitrefill doesn't take ZEC, so the shielded testnet payment *authorises* the purchase rather than paying for it.
 - **Guardrails:**
-  - **Per purchase:** every reward needs authenticated sponsor approval. The campaign budget and configured per-order cap apply; campaigns cannot exceed $20.
-  - **Per day:** **$25** of agent orders in total. Budget is reserved in one SQLite transaction at checkout, and re-checked when the purchase is claimed.
+  - **Per purchase:** every reward needs authenticated sponsor approval. The campaign budget and configured per-order cap apply; campaigns cannot exceed $20. Open sponsors (Start funding) are capped at $5 per campaign and 5 campaigns a day, with 300 new sponsor sessions a day site-wide. Open access exists only while purchases are in test or simulate mode.
+  - **Per day:** **$25** of agent orders in total, shared by every sponsor. Budget is reserved in one SQLite transaction at checkout, and re-checked when the purchase is claimed.
   - **Bitrefill's own caps:** 5 top-ups and 15 gift cards a day per account.
   - **Hard ceiling:** the Bitrefill balance, which holds only event credits.
-  - **Other limits:** one purchase per order, through an atomic claim. An uncertain outcome is reconciled, never retried blindly. Payment requests expire after 15 minutes. In live mode, fulfillment re-prices the product before it buys. A rise of more than 5% over the approved price, or any price above the cap, stops the purchase. Public reward endpoints are rate-limited per client (for example 10 claims and 6 agent selections a minute).
+  - **Other limits:** one purchase per order, through an atomic claim. An uncertain outcome is reconciled, never retried blindly. Payment requests expire after 15 minutes. In live mode, fulfillment re-prices the product before it buys. A rise of more than 5% over the approved price, or any price above the cap, stops the purchase. Public reward endpoints are rate-limited per client (for example 10 claims, 6 agent selections and 5 Start funding sessions a minute).
+  - **Above the caps:** nothing is bought; the guardrail blocks the order and there's no in-app override. Only the operator can change the caps, in the server configuration. Switching purchases to live (`BITREFILL_PURCHASES=live`) also turns off open sponsor access.
 - **Purchase proof:** TODO, the invoice ID of a paid purchase plus the video timestamp. So far, both flows have made real API purchases of Bitrefill's test products. Mission rewards: invoices `7d8e4569-daa5-4de9-9a35-518b7d42c47f` (eSIM) and `2cc79a30-29c6-423a-9d7a-8844d63b671a` (gift card). Checkout: invoices `98d4f316-c3fa-482a-9137-91723064b4e5` (gift card) and `3f51bca9-39bc-4579-bd51-6df1fc584d4b` (eSIM). Test products cost nothing; the balance was 0 before and after.
 - **What's new here:**
   - **A new guarantee:** the agent, the database and the logs can't leak the code, because they never hold it in readable form.
@@ -280,17 +305,24 @@ pnpm zkool:pay 'zcash:utest1…?amount=…&memo=…'
 - Bitrefill REST API v2
 - Coinbase and Kraken public price APIs, for BTC/USD
 - vitest 5.1.0, tsx 4.23.15, pnpm 11.22.0, Node 22+
+- Hosting: an Ubuntu VPS with nginx 1.28.3, Let's Encrypt TLS and systemd services; GitHub Actions for CI and deploys (Node 24)
 
 **Architecture:**
 
 ```
-Sponsor → /campaigns → allowlisted products, budget, one-use invitation
-Player → /claim → mission → structured preferences → reward-agent.ts
+Sponsor → /campaigns → Start funding (anonymous key) → allowlisted products, budget, one-use invitation
+Player → /claim (scan or paste) → mission → structured preferences → reward-agent.ts
 Sponsor approval → exact order + ZIP-321 request → shielded testnet payment
 Watcher → confirmed receipt → fulfill.ts → Bitrefill (event credits)
 Bitrefill redemption → seal to player key → SQLite ciphertext
 Player → /orders → local decryption and masked reveal
 ```
+
+**Deployment:**
+- **Production** is https://tryzealed.xyz on the team's VPS. nginx serves it with a Let's Encrypt certificate and proxies to the Next.js standalone server on 127.0.0.1:3100, which also runs the payment watcher. The watch-only `zkool_graphql` runs on 127.0.0.1:8000. Both are systemd services, and SQLite is on the server's disk.
+- **CI:** `.github/workflows/ci.yml` runs install, typecheck, lint and tests on every push and pull request.
+- **Deploys:** on `main`, a deploy job asks the VPS to deploy that exact commit, through an SSH key restricted to one forced command. The server builds the new release next to the live one, switches over, and rolls back if the health check fails. The job skips until the repository's deploy secrets are configured; until then, deploys are run by hand with the same release-swap procedure.
+- **Security headers** (set by nginx): HSTS, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, and a `Permissions-Policy` that allows the camera only for the site itself, for in-app QR scanning.
 
 **Design decisions:**
 - **Mission selection:** the model receives only structured preferences, country and a bounded list of eligible packages. The server validates its selected index and copies product/price fields from the catalog, never from generated text. Eligibility and sponsor approval are enforced outside the model.
@@ -301,10 +333,14 @@ Player → /orders → local decryption and masked reveal
 - **The server holds a viewing key only.** Spending keys and seeds never reach the app, the database, logs or the AI.
 - **Fail closed.** With no verified real Zcash backend, checkout refuses to start. Simulated payments are refused in production.
 - **Money is integers:** USD cents and zatoshis, never floats.
-- **Guardrails live in code, not in the prompt.** Approvals are signed, budget reservations are atomic, and limits are re-checked before buying.
+- **Guardrails live in code, not in the prompt.** Sponsor approval is an authenticated request checked against the campaign's owner, budget reservations are atomic, and limits are re-checked before buying.
+- **Anonymous sponsors in test mode only.** Start funding gives a sponsor a random key that only its browser holds. The server stores its hash and scopes every campaign to it. Open access fails closed: it turns off when purchases are live.
+- **Gift links carry ciphertext only.** The giver's browser re-seals a delivered reward to a key the friend's browser created, so the server relays ciphertext and deletes it on first open.
 
 **Code worth reading:**
-- `lib/campaigns.ts` and `lib/sponsor-order.ts`: hashed invitations, atomic single-use claims, and a sponsor approval that creates exactly one order bound to the player's key.
+- `lib/campaigns.ts` and `lib/sponsor-order.ts`: hashed invitations, anonymous sponsor keys with per-sponsor ownership, atomic single-use claims, and a sponsor approval that creates exactly one order bound to the player's key.
+- `lib/sponsors-security.test.ts`: sponsor isolation, forged keys and fail-closed sessions.
+- `lib/gift-links.ts`: one-time gift links that hold token hashes, a public key and ciphertext only.
 - `lib/reward-agent.ts`: the model picks an index from a bounded list of eligible packages, and the server copies the product and price from the catalog, never from the model's text.
 - `lib/campaigns.test.ts`: concurrent approvals, attempt limits, key substitution and HTTP authorization.
 - `lib/fulfill.ts`: buys at most once, seals the result immediately and wipes the phone number.
@@ -329,12 +365,12 @@ TODO: link any of these if you publish them as a package.
 - **Next milestone:** a bounded pilot with one event or community organizer by Fri 4 Dec 2026, with their feedback recorded here.
 - **After that:**
   - Campaigns with many claims, plus budget accounting, revocation and safe expiry. Uncertain purchases stay reserved until they're reconciled.
-  - Claim links shared over Telegram or any other chat. The sealed copy is deleted after the first open or after a timer.
+  - Finish sealed gift links shared over Telegram or any other chat: link them from the delivered-order view and deploy them. The server side, the API, the gift button and the friend's page are built and tested; the sealed copy is deleted after the first open or after a timer.
   - Make the Reclaim mission live, with a custom Reclaim provider for approved Luma attendance, and run the FROST 2-of-3 treasury's key generation on testnet.
   - A zero-knowledge proof of the mission answer, bound to the campaign and the player's key, with campaign-scoped nullifiers to stop replays. It proves a statement about the answer, not that the player is a unique human.
   - Pooled sponsor funding and refunds, designed separately: custody, currency conversion, fees, who may refund, and how pending claims settle. Testnet TAZ can't be spent as Bitrefill credit.
   - Network privacy for the watcher (Nym), shorter metadata retention, and issuers encrypting straight to the player's key.
-- **Not planned for now:** pooled deposits, automatic refunds, several missions per campaign, broad global inventory and dispute handling.
+- **Not planned for now:** pooled deposits, automatic refunds, broad global inventory and dispute handling.
 - **Who benefits:** TODO: name a real organizer, partner or project.
 - **Already started:** TODO: links to an upstream issue or PR, a partner thread, or a post in [What are you building on Zcash?](https://forum.zcashcommunity.com/t/what-are-you-building-on-zcash/55172). No organizer demand or partnership is claimed yet.
 
@@ -342,7 +378,7 @@ TODO: link any of these if you publish them as a package.
 
 - Repo: https://github.com/r0bops/zealed
 - Demo video: TODO
-- Live app: TODO
+- Live app: https://tryzealed.xyz (Bitrefill test mode)
 
 ## Feedback
 
