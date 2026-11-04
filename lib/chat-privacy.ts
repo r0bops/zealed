@@ -1,6 +1,6 @@
 // A best-effort input guard, not a guarantee that arbitrary prose contains no secrets.
 export function looksSensitive(text: string): boolean {
-  return /(?:\+?\d[\d\s().-]{7,}\d)|(?:zealed-key-v1-|sk-ant-|sk-proj-|LPA:1\$)|(?:\b[A-Z0-9]{4,}(?:-[A-Z0-9]{4,}){2,}\b)/.test(text)
+  return /(?:\+?\d[\d\s()-]{7,}\d)|(?:zealed-key-v1-|sk-ant-|sk-proj-|LPA:1\$)|(?:\b[A-Z0-9]{4,}(?:-[A-Z0-9]{4,}){2,}\b)/.test(text)
     || /(?:my|the|this)\s+(?:phone(?: number)?|seed(?: phrase)?|private key|gift\s*card code|redemption code|activation code|password|api key)\s*(?:is|:|=)/i.test(text);
 }
 
@@ -15,7 +15,9 @@ export function validateChatMessages(value: unknown): unknown[] {
         // SDK signatures and signed proposals are opaque credentials, not prose.
         // They are never persisted by the event logger.
         if (["id", "toolCallId", "signature", "proposalToken"].includes(key)) {
-          if (typeof entry !== "string" || entry.length > 4096 || !/^[A-Za-z0-9_./+=:-]+$/.test(entry)) throw new Error("Invalid chat");
+          // A streamed assistant message may start with an empty id; everything else must be non-empty.
+          const opaque = key === "id" ? /^[A-Za-z0-9_./+=:-]*$/ : /^[A-Za-z0-9_./+=:-]+$/;
+          if (typeof entry !== "string" || entry.length > 4096 || !opaque.test(entry)) throw new Error("Invalid chat");
         } else scan(entry, depth + 1);
       }
     }
@@ -26,7 +28,7 @@ export function validateChatMessages(value: unknown): unknown[] {
     for (const part of message.parts) {
       if (!part || typeof part !== "object" || typeof part.type !== "string") throw new Error("Invalid chat");
       if (message.role === "user" && (part.type !== "text" || typeof part.text !== "string" || part.text.length > 4000)) throw new Error("Invalid chat");
-      if (message.role === "assistant" && !["text", "reasoning", "step-start", "tool-search_catalog", "tool-quote", "tool-propose_order", "tool-get_order_status"].includes(part.type)) throw new Error("Invalid chat");
+      if (message.role === "assistant" && !["text", "reasoning", "step-start", "custom", "tool-search_catalog", "tool-quote", "tool-propose_order", "tool-get_order_status"].includes(part.type)) throw new Error("Invalid chat");
     }
     scan(message);
   }
