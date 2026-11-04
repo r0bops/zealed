@@ -41,8 +41,8 @@ export function SealedLanding() {
           <div className={`${styles.wrap} ${styles.heroInner}`}>
             <div>
               <div className={styles.eyebrow}><span className={styles.ok}>●</span> Shielded on Zcash testnet</div>
-              <h1>Finish the mission.<span>Only you open the reward.</span></h1>
-              <p className={styles.heroLead}>An agent picks a perk that works for you. The sponsor authorises it with a shielded payment, and it&apos;s sealed to your browser.</p>
+              <h1>Finish your missions.<span>Unlock your reward.</span></h1>
+              <p className={styles.heroLead}>Quizzes, social actions and event tasks. Complete the checklist, then choose a gift card, eSIM, testnet Zcash or a custom prize. Codes stay sealed to your browser.</p>
               <div className={styles.ctas}>
                 <Link className={`${styles.btn} ${styles.goldBtn}`} href="/claim">Claim a reward →</Link>
                 <Link className={styles.btn} href="/orders">My rewards →</Link>
@@ -70,20 +70,20 @@ export function SealedLanding() {
             <div className={styles.grid3}>
               <article className={styles.card}>
                 <div className={styles.eyebrow}>Step 1</div>
-                <h3>Complete the mission</h3>
-                <p>Pass the sponsor&apos;s quiz or task. Your browser makes a key that only it holds.</p>
+                <h3>Complete every mission</h3>
+                <p>Pass quizzes and submit evidence for social or custom tasks. The organizer reviews evidence before your prize unlocks.</p>
                 <div className={styles.art}><span className={styles.muted}>quiz</span> → <span className={styles.ok}>passed</span></div>
               </article>
               <article className={styles.card}>
                 <div className={styles.eyebrow}>Step 2</div>
-                <h3>The sponsor authorises it</h3>
-                <p>An agent picks a perk within budget. A shielded ZEC payment authorises the order.</p>
+                <h3>Choose your prize</h3>
+                <p>For Bitrefill perks, an agent selects a package and the sponsor authorises it. Zcash and custom prizes are fulfilled by the organizer.</p>
                 <div className={styles.art}><span className={styles.muted}>memo</span> → order tag + cart hash</div>
               </article>
               <article className={styles.card}>
                 <div className={styles.eyebrow}>Step 3</div>
                 <h3>Open it in your browser</h3>
-                <p>The code arrives encrypted to your key and is decrypted locally.</p>
+                <p>Decrypt gift codes and custom instructions locally. Zcash testnet prizes arrive in your wallet.</p>
                 <div className={styles.art}><span className={styles.ok}>sealed</span> → <span className={styles.gold}>····-····</span></div>
               </article>
             </div>
@@ -97,12 +97,12 @@ export function SealedLanding() {
               <article className={styles.card}>
                 <div className={styles.eyebrow}>Organizers</div>
                 <h3>Reward your community without a spreadsheet of codes</h3>
-                <p>Set a mission and a budget. See counts, status and spend.</p>
+                <p>Set required tasks, prize options and a budget. Review submissions and track rewards.</p>
               </article>
               <article className={styles.card}>
                 <div className={styles.eyebrow}>Players</div>
-                <h3>No name, no email</h3>
-                <p>Your perk is sealed to your browser. Copying your link doesn&apos;t copy your reward.</p>
+                <h3>Your reward, your browser</h3>
+                <p>No account required. Public task evidence can identify you; share only what the mission needs.</p>
               </article>
               <article className={styles.card}>
                 <div className={styles.eyebrow}>Builders</div>
@@ -150,7 +150,7 @@ export function SealedLanding() {
               <article className={styles.card}>
                 <div className={styles.eyebrow}>Organizer / sponsor</div>
                 <h3>Counts, status, amounts</h3>
-                <p>Aggregate claims and spend. Never your key or your code.</p>
+                <p>Task evidence, reward status and spend. Never your private key. Organizers know custom rewards they issue.</p>
                 <div className={styles.art}>claims: n · status · ZEC spent</div>
               </article>
               <article className={styles.card}>
@@ -255,7 +255,7 @@ export function SealedLanding() {
           </div>
           <div className={styles.legal}>
             <span>Zcash Free Society Hack · testnet only</span>
-            <span>No real funds. Testnet ZEC (TAZ).</span>
+            <span>Testnet Zcash · Bitrefill funded separately.</span>
           </div>
         </div>
       </footer>
