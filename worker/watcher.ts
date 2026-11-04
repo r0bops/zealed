@@ -3,6 +3,7 @@
 import { memoCartHash } from "../lib/cart";
 import { fulfillOrder, reconcileOrder } from "../lib/fulfill";
 import { log, safeError } from "../lib/log";
+import { markWatcherStarted, markWatcherTick } from "../lib/watcher-status";
 import { getOrderByMemo, now, ordersInStatus, recoverStaleFulfillments, transition } from "../lib/orders";
 import { extractMemoTag } from "../lib/zip321";
 import { MIN_CONFIRMATIONS, zcash } from "../lib/zcash";
@@ -90,11 +91,14 @@ export function startWatcher() {
     running = true;
     try {
       await tick();
+      markWatcherTick(true);
     } catch (e) {
+      markWatcherTick(false);
       log.warn("watcher tick failed", { err: safeError(e) });
     } finally {
       running = false;
     }
   }, TICK_MS);
+  markWatcherStarted();
   log.info("payment watcher started", { tickMs: TICK_MS, backend: process.env.ZCASH_BACKEND ?? "fake" });
 }
