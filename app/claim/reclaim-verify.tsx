@@ -14,7 +14,7 @@ const randomSecret = () => btoa(String.fromCharCode(...crypto.getRandomValues(ne
 /** Says which mission the player faces, so a quiz fallback is never mistaken for a verified proof. */
 export function MissionModeNote({ mode }: { mode?: "reclaim" | "quiz" }) {
   return <p className="text-xs text-muted" data-mission-mode={mode ?? "quiz"}>
-    Mission mode: {mode === "reclaim" ? "Reclaim zkTLS proof of a web-account fact." : "quiz. Reclaim zkTLS verification is not configured on this server."}
+    {mode === "reclaim" ? "Account verification uses a Reclaim zkTLS proof." : "This invitation uses a quiz. It does not verify identity or attendance."}
   </p>;
 }
 
@@ -27,6 +27,8 @@ export function ReclaimVerify({ campaignId, storageKey, session, invitation, onS
   campaignId: string; storageKey: string; session: ClaimSession | null; invitation: MissionInvitation; onSession: (next: ClaimSession) => void;
 }) {
   const [phase, setPhase] = useState<Phase>("idle"), [link, setLink] = useState(""), [error, setError] = useState("");
+  // A short link for the QR code. The full request link is too dense to scan, so the server hands out a redirect.
+  const [qr, setQr] = useState("");
   const flow = useRef<ProofRequest | null>(null);
   useEffect(() => () => { void flow.current?.cancelSession(); }, []);
   const blocked = invitation.expired || invitation.claimed && !session?.secret;
@@ -44,7 +46,7 @@ export function ReclaimVerify({ campaignId, storageKey, session, invitation, onS
   async function start() {
     if (!session) { setError("Reopen the invitation."); return; }
     void flow.current?.cancelSession(); flow.current = null;
-    setPhase("starting"); setError(""); setLink("");
+    setPhase("starting"); setError(""); setLink(""); setQr("");
     try {
       let next = session;
       if (!next.publicKey || !next.secret) {
@@ -53,7 +55,8 @@ export function ReclaimVerify({ campaignId, storageKey, session, invitation, onS
         await set(storageKey, next); onSession(next);
       }
       const creds = next;
-      const { request: json } = await request<{ request: string }>(`/api/campaigns/${campaignId}/reclaim`, creds.invitation, { publicKey: creds.publicKey });
+      const { request: json, qr: short } = await request<{ request: string; qr?: string | null }>(`/api/campaigns/${campaignId}/reclaim`, creds.invitation, { publicKey: creds.publicKey });
+      setQr(short ? (short.startsWith("/") ? location.origin + short : short) : "");
       const { ReclaimProofRequest } = await import("@reclaimprotocol/js-sdk");
       const proofRequest = await ReclaimProofRequest.fromJsonString(json);
       flow.current = proofRequest;
@@ -87,7 +90,7 @@ export function ReclaimVerify({ campaignId, storageKey, session, invitation, onS
             <button className={button} onClick={() => void open()}>Open Reclaim verification</button>
             <p role="status" className="text-sm text-muted">Waiting for your proof. Keep this page open; it continues automatically.</p>
             {link && <details className="text-sm"><summary className="min-h-11 cursor-pointer py-2">Verify on your phone or open the link yourself</summary>
-              <div className="flex flex-col items-start gap-3 pt-2"><QR value={link} label="QR code for the Reclaim verification" size={180} />
+              <div className="flex flex-col items-start gap-3 pt-2"><QR value={qr || link} label="QR code for the Reclaim verification" size={220} />
                 <a className={buttonSecondary + " inline-flex items-center"} href={link} target="_blank" rel="noopener noreferrer">Open verification link</a></div>
             </details>}
             <button className="min-h-11 self-start text-sm underline" onClick={() => void start()}>Start over</button>

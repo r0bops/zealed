@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { createOrderKey, loadKey } from "@/lib/keystore";
 import { fingerprint } from "@/lib/sodium";
 import { isWebLink, openGiftEnvelope, type GiftEnvelope } from "@/lib/gift-envelope";
-import { QR, button, buttonSecondary, panel, request } from "../../reward-ui";
+import { QR, button, buttonSecondary, panel, request, CopyButton } from "../../reward-ui";
 import { giftStatusRequest, isOwnGift, loadReceived, saveReceived, type ReceivedGift } from "../gift-store";
 
 type Phase = "loading" | "invalid" | "gone" | "taken" | "own" | "intro" | "waiting" | "opening" | "ready";
@@ -124,7 +124,7 @@ export function GiftOpen({ giftId }: { giftId: string }) {
   };
 
   return (
-    <section className={panel} aria-live="polite">
+    <section className={panel + " mx-auto w-full max-w-2xl"} aria-live="polite">
       {phase === "loading" && !error && <p className="text-sm text-muted">Checking the gift link…</p>}
       {phase === "invalid" && <p className="text-sm">This link is incomplete. Ask the sender to copy the whole link, including the part after #.</p>}
       {phase === "gone" && <p className="text-sm">This gift link was already opened, has expired or was cancelled. Zealed keeps no copy.</p>}
@@ -204,7 +204,7 @@ function Secret({ label, value, revealed }: { label: string; value: string; reve
       <span className="text-muted">{label}</span>
       <span className="font-mono break-all">{revealed ? value : "•".repeat(Math.min(value.length, 16))}</span>
       {revealed && (
-        <button type="button" className="text-xs text-muted underline" onClick={() => void navigator.clipboard.writeText(value).catch(() => undefined)}>copy</button>
+        <CopyButton value={value} label={`Copy ${label.toLowerCase()}`} />
       )}
     </p>
   );

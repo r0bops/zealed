@@ -3,7 +3,7 @@ import { set } from "idb-keyval";
 import { useState } from "react";
 import { attendeeHashBrowser, looksLikeEmail } from "@/lib/attendee-hash";
 import { createOrderKey } from "@/lib/keystore";
-import { button, panel, request } from "../reward-ui";
+import { button, panel, request, field } from "../reward-ui";
 
 type ClaimSession = { invitation: string; publicKey?: string; secret?: string; claimId?: string; attendee?: string };
 type EmailInvitation = { expired: boolean; claimed: boolean; attendeeEventId?: string };
@@ -49,7 +49,7 @@ export function EmailVerify({ campaignId, storageKey, session, invitation, onSes
       <label className="flex flex-col gap-1 text-sm">
         <span className="font-medium">Luma email</span>
         <input type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.currentTarget.value)} placeholder="you@example.com"
-          className="min-h-11 rounded-lg border border-line bg-background px-3 py-2 outline-none focus-visible:border-accent" />
+          className={field} />
       </label>
       {error && <p role="alert" className="text-sm text-danger">{error}</p>}
       <button className={button} disabled={busy || blocked}>{busy ? "Checking the attendee list…" : invitation.claimed && !session?.secret ? "Invitation already claimed" : "Check & reserve my reward"}</button>

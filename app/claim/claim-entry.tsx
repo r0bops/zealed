@@ -2,8 +2,8 @@
 import Link from "next/link";
 import { get, keys } from "idb-keyval";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
-import { RewardLayout, field, button, buttonSecondary, panel, request } from "../reward-ui";
-import { Steps } from "../role-switch";
+import { RewardLayout, field, button, buttonSecondary, panel, request, StatusTag } from "../reward-ui";
+import { Icon } from "../ui-icon";
 
 type Saved = { id: string; title: string | null; claimed: boolean };
 type Detector = { detect(source: HTMLVideoElement): Promise<{ rawValue: string }[]> };
@@ -85,26 +85,19 @@ export function ClaimEntry() {
     if (!path) { setError("Use the complete Zealed invitation link from your sponsor, including the part after #."); return; }
     open(path);
   }
-  return <RewardLayout title="Claim a reward" role="claim">
-    <p className="text-muted">Open your organizer’s private QR or link, complete every task and choose your prize. No Zealed account needed. Only Zcash prizes require your own testnet wallet.</p>
-    <Steps label="What happens after you open the invitation" steps={["Join", "Complete tasks", "Choose a prize", "Receive reward"]} current={-1} />
-    {saved.length > 0 && <section className={panel}>
-      <h2 className="text-lg font-semibold">Continue on this browser</h2>
-      <ul className="flex flex-col divide-y divide-line">{saved.map(s => <li key={s.id}><Link href={`/claim/${s.id}`} className="flex min-h-11 items-center justify-between gap-3 py-2 text-sm hover:underline"><span>{s.title ?? "Invitation unavailable or expired"}<span className="block font-mono text-xs text-muted">{s.id.slice(0, 8)} · {s.claimed ? "claimed" : "not claimed yet"}</span></span><span aria-hidden>→</span></Link></li>)}</ul>
-    </section>}
-    <section className={panel}>
-      <h2 className="text-lg font-semibold">Scan the QR code</h2>
-      {canScan === false && <p className="text-sm text-muted">Point your phone’s camera at the sponsor’s QR code. It opens your invitation directly, with no app to install.</p>}
-      {canScan && !scanning && <button className={button} onClick={() => setScanning(true)}>Scan with camera</button>}
-      {canScan && scanning && <Scanner onFound={open} onClose={() => setScanning(false)} />}
-      <p className="text-xs text-muted">Scanning happens on this device. Camera images are never uploaded.</p>
-    </section>
-    <form className={panel} onSubmit={submit}>
-      <h2 className="text-lg font-semibold">Or paste the link</h2>
-      <label className="flex flex-col gap-2 text-sm">Invitation link<input className={field} type="text" inputMode="url" autoComplete="off" autoCapitalize="none" spellCheck={false} required value={link} placeholder="https://…/claim/…#…" aria-invalid={!!error} onChange={e => { setLink(e.target.value); setError(""); }} /></label>
-      {error && <p role="alert" className="text-sm text-danger">{error}</p>}
-      <button className={button}>Open invitation</button>
-      <p className="text-xs text-muted">Keep your invitation private: whoever claims it first reserves the reward.</p>
-    </form>
+  return <RewardLayout title="A reward is waiting for you." role="claim" description="Open your event invitation, complete the missions and choose your prize. No Zealed account needed.">
+    <div className="workspace-split">
+      <form className={panel} onSubmit={submit}>
+        <Icon name="gift" className="text-accent" width={28} height={28} />
+        <h2>Open your invitation</h2>
+        <p className="workspace-note">Paste the complete link from your organizer, including the part after #.</p>
+        <label className="flex flex-col gap-2 text-sm">Invitation link<input className={field} type="text" inputMode="url" autoComplete="off" autoCapitalize="none" spellCheck={false} required value={link} placeholder="https://…/claim/…#…" aria-invalid={!!error} aria-describedby={error ? "invite-error" : undefined} onChange={e => { setLink(e.target.value); setError(""); }} /></label>
+        {error && <p id="invite-error" role="alert" className="text-sm text-danger">{error}</p>}
+        <button className={button}>Open invitation<Icon name="arrow" /></button>
+        <p className="workspace-note">This link is private. Whoever joins first reserves the invitation.</p>
+      </form>
+      <aside className="workspace-stack"><section className={panel}><Icon name="qr" className="text-accent" width={28} height={28} /><h2>Have a QR code?</h2><p className="workspace-note">Point your phone’s camera at the organizer’s code to open the invitation directly.</p>{canScan && !scanning && <button className={buttonSecondary} onClick={() => setScanning(true)}>Scan with this camera</button>}{canScan && scanning && <Scanner onFound={open} onClose={() => setScanning(false)} />}<p className="text-xs text-muted">Camera images stay on your device.</p></section><p className="workspace-note flex gap-3"><Icon name="wallet" className="shrink-0" />You only need a wallet if you choose a Zcash testnet prize.</p></aside>
+    </div>
+    {saved.length > 0 && <section className="workspace-stack"><div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-xl font-semibold">Continue where you left off</h2><span className="workspace-note">Saved on this browser</span></div><div className="workspace-list">{saved.map(s => <Link key={s.id} href={`/claim/${s.id}`} className="workspace-list-row"><div><p className="font-medium">{s.title ?? "Saved invitation"}</p><p className="workspace-note">{s.title ? "Open your missions and reward" : "Reconnect to check this invitation"}</p></div><div className="flex items-center gap-3"><StatusTag tone={s.claimed ? "attention" : "neutral"}>{s.claimed ? "Joined" : "Not started"}</StatusTag><Icon name="arrow" className="shrink-0 text-muted" /></div></Link>)}</div></section>}
   </RewardLayout>;
 }

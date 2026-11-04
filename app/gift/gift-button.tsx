@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { loadKey } from "@/lib/keystore";
 import { fingerprint, open } from "@/lib/sodium";
 import { giftableContent, resealForFriend } from "@/lib/gift-envelope";
-import { button, buttonSecondary, panel, request } from "../reward-ui";
+import { button, buttonSecondary, request } from "../reward-ui";
 import { forgetSent, giftLink, giftStatusRequest, loadSent, saveSent, telegramShareUrl, type SentGift } from "./gift-store";
 
 type Status = NonNullable<Awaited<ReturnType<typeof giftStatusRequest>>>;
@@ -109,7 +109,7 @@ export function GiftButton({ sealedPayload, buyerPublicKey, label }: { sealedPay
   const state = status?.state ?? "waiting";
 
   return (
-    <section className={panel} aria-live="polite">
+    <section className="workspace-stack py-4" aria-live="polite">
       <div className="flex flex-col gap-1">
         <h2 className="font-semibold">Gift it to a friend</h2>
         <p className="text-sm text-muted">

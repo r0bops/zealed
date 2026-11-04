@@ -2,6 +2,7 @@
 import { get, set } from "idb-keyval";
 import { useEffect, useState, type FormEvent } from "react";
 import { createOrderKey, rememberOrder, loadKey } from "@/lib/keystore";
+import Link from "next/link";
 import { PaymentPanel } from "../../order-details";
 import { RewardLayout, field, button, panel, request } from "../../reward-ui";
 import { Steps } from "../../role-switch";
@@ -65,9 +66,9 @@ export function PlayerClaim({ campaignId }: { campaignId: string }) {
     });
   }
   const claimStep = !session?.claimId ? 0 : !status?.choice ? 1 : !status.orderId ? 2 : 3;
-  if (invitation?.program && session) return <ProgramPlayer campaignId={campaignId} session={session} title={invitation.title} expired={invitation.expired} program={invitation.program} onSession={setSession} />;
-  return <RewardLayout title={invitation?.title ?? "Claim a reward"} role="claim">
-    {error && <div role="alert" className="rounded-lg border border-danger p-3 text-sm"><p className="text-danger">{error}</p><button className="min-h-11 underline" onClick={() => setReload(r => r + 1)}>Reload invitation</button></div>}
+  if (invitation?.program && session) return <ProgramPlayer campaignId={campaignId} session={session} title={invitation.title} expired={invitation.expired} claimed={invitation.claimed && !session.secret} program={invitation.program} onSession={setSession} />;
+  return <RewardLayout title={invitation?.title ?? "Claim a reward"} role="claim" description="Complete your organizer’s mission, choose a perk and follow its delivery here."><div className="workspace-stack mx-auto w-full max-w-3xl">
+    {error && <div role="alert" className="rounded-lg border border-danger p-3 text-sm"><p className="text-danger">{error === "Campaign not found." ? "Invitation not found. Check the link from your organizer." : error}</p><Link href="/claim" className="workspace-inline-link">Paste another invitation</Link><button className="min-h-11 underline" onClick={() => setReload(r => r + 1)}>Reload invitation</button></div>}
     {!invitation && !error && <p role="status">Loading invitation…</p>}
     {invitation && <><p className="text-muted">One reward up to ${(invitation.budgetCents / 100).toFixed(2)} for use in {invitation.country}. Your sponsor authorises the purchase; your browser receives the encrypted result.</p>
       <Steps label="Your claim progress" steps={["Mission", "Pick a perk", "Sponsor approves", "Open your reward"]} current={claimStep} />
@@ -77,7 +78,7 @@ export function PlayerClaim({ campaignId }: { campaignId: string }) {
       {!session?.claimId && invitation.missionMode !== "reclaim" && invitation.missionMode !== "email" && <form className={panel} onSubmit={complete}>
         <h2 className="text-lg font-semibold">A short privacy mission</h2>
         <p className="text-sm text-muted">A broadcast is only a request to the network. Zealed waits for confirmation and checks the recipient, amount and order memo before fulfillment.</p>
-        <fieldset className="flex flex-col gap-2"><legend className="mb-3 font-medium">{invitation.mission.question}</legend>{invitation.mission.options.map((option, i) => <label key={option} className="flex min-h-11 items-center gap-3 rounded-lg border border-line p-3 text-sm"><input type="radio" name="answer" required value={i} checked={answer === String(i)} onChange={e => setAnswer(e.target.value)} />{option}</label>)}</fieldset>
+        <fieldset className="flex flex-col gap-2"><legend className="mb-3 font-medium">{invitation.mission.question}</legend>{invitation.mission.options.map((option, i) => <label key={option} className="workspace-choice text-sm"><input type="radio" name="answer" required value={i} checked={answer === String(i)} onChange={e => setAnswer(e.target.value)} />{option}</label>)}</fieldset>
         <button className={button} disabled={busy || invitation.expired || invitation.claimed && !session?.secret}>{busy ? "Reserving your invitation…" : invitation.claimed && !session?.secret ? "Invitation already claimed" : "Complete mission & reserve reward"}</button>
         <p className="text-xs text-muted">This is a learning activity, not proof of identity or attendance. Five answer attempts per invitation.</p>
       </form>}
@@ -97,5 +98,5 @@ export function PlayerClaim({ campaignId }: { campaignId: string }) {
       {ready && status?.orderId && <PaymentPanel orderId={status.orderId} compact />}
       {session?.publicKey && <section className={panel}><h2 className="font-semibold">Keep access to your reward</h2><p className="text-sm text-muted">This browser stores your claim access and decryption key. Clearing site storage can lose access. Save the key privately; it is never sent to the sponsor.</p><button className={button} onClick={() => void run(async () => { const kp = await loadKey(session.publicKey!); if (!kp) throw new Error("The decryption key is missing from this browser."); setBackup(kp.backup); })}>Show private key backup</button>{backup && <><label className="flex flex-col gap-2 text-sm">Private backup<textarea className={field + " font-mono break-all"} readOnly value={backup} /></label><button className="min-h-11 text-sm underline" onClick={() => setBackup("")}>Hide backup</button><p className="text-xs text-muted">The key alone does not restore claim authorization on another device. Cross-device claim recovery is not supported yet.</p></>}</section>}
     </>}
-  </RewardLayout>;
+  </div></RewardLayout>;
 }
