@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { createOrderKey, importKey, loadKey, rememberOrder } from "@/lib/keystore";
 import { decodeContent, type SealedContent } from "@/lib/payload";
 import { fingerprint, open, seal } from "@/lib/sodium";
+import { NoirPayButton } from "./noir-pay";
 
 export interface CheckoutProposal {
   proposalToken: string;
@@ -244,6 +245,8 @@ export function PaymentPanel({ orderId, compact = false }: { orderId: string; co
 
       {status === "awaiting_payment" && (
         <div className="flex flex-col gap-3">
+          <NoirPayButton to={o.payAddr} amountZec={zec(o.amountZat)} memo={data.memo} simulatedDetection={data.simulatedPayment} />
+          <p className="text-xs text-muted">Or pay from any testnet wallet:</p>
           <div className="flex gap-3">
             {/* eslint-disable-next-line @next/next/no-img-element -- local data: URL */}
             {qr && <img src={qr} alt="Zcash payment QR code" className="size-32 shrink-0 rounded-lg bg-white p-1" />}
