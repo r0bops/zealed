@@ -1,6 +1,6 @@
 # Zealed: buy gift cards, eSIMs and top-ups without exposing the code
 
-Tracks: Privacy (Zcash) and Agentic Commerce (Bitrefill). Event rules, deadlines and judging are in [docs/HACKATHON.md](docs/HACKATHON.md). Zcash research is in [docs/ZCASH.md](docs/ZCASH.md).
+Tracks: Privacy (Zcash) and Agentic Commerce (Bitrefill), Free Society Hack, Mumbai, 4–5 Nov 2026.
 
 **Problem:** Gift card codes and eSIM QR codes leak through platforms, agent logs and breaches, and a leaked code gets drained in seconds. Resale sites are full of stolen and already-used cards. Top-up services store millions of phone numbers.
 
@@ -134,13 +134,14 @@ agent_events  id, sessionId, kind(tool_call|tool_result|message), name, payload(
 ## Repo layout
 
 ```
-/app            /, /agent, /buy/[type], /sell, /seller/orders, /order/[id], /inspect
-/app/api        fulfill-key, catalog, listings, orders, seller, agent, inspect, dev
-/lib            sodium.ts, db/ (schema, client), zcash.ts, zip321.ts, bitrefill.ts,
-                fulfill.ts, guardrails.ts, order-state.ts, money.ts, agent.ts, log.ts
-/worker         watcher.ts
-/docs           HACKATHON.md, ZCASH.md
-SPEC.md  README.md  AGENTS.md  FEEDBACK.md  .env.example
+/app            / (agent chat + checkout), /order/[id], /inspect, /sell, /seller/orders
+/app/api        agent, orders, orders/[id], fulfill-key, inspect, dev/simulate-payment, listings, seller
+/lib            sodium.ts, keystore.ts, payload.ts, db/ (schema, client), zcash.ts, zip321.ts, cart.ts,
+                bitrefill.ts, fulfill.ts, fulfill-key.ts, guardrails.ts, proposal.ts, order-state.ts,
+                orders.ts, money.ts, agent.ts, log.ts
+/worker         watcher.ts (started from instrumentation.ts)
+/scripts        keygen.ts, smoke-agent-tools.ts, e2e-simulated.ts, reset-dev-db.ts
+SPEC.md  README.md  FEEDBACK.md  .env.example
 ```
 
 `.env.example`:
