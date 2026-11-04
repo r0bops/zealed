@@ -68,7 +68,8 @@ describe("catalog separation and quote validation", () => {
     vi.stubGlobal("fetch", fetcher);
     expect(isSimulated()).toBe(false);
     expect(await searchProducts("airtel")).toEqual([]);
-    expect(fetcher).toHaveBeenCalledTimes(2);
+    // Balance, then the live search; an empty result also tries "<query> <country name>".
+    expect(fetcher.mock.calls.map(([url]) => new URL(url).pathname + (new URL(url).searchParams.get("q") ?? ""))).toEqual(["/v2/accounts/balance", "/v2/products/searchairtel", "/v2/products/searchairtel India"]);
   });
   it("does not reuse currency across accounts", async () => {
     vi.stubEnv("BITREFILL_API_KEY", "account-one");

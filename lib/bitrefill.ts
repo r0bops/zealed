@@ -199,7 +199,7 @@ export function normalize(p: Record<string, unknown>, accountCurrency: string): 
 }
 
 const CATALOG_TTL_MS = 10 * 60_000;
-const CACHE_V = "v3"; // bump when the normalized shape or pricing changes
+const CACHE_V = "v4"; // bump when the normalized shape, pricing or search behaviour changes
 
 function cacheScope(): string {
   const account = createHash("sha256").update(process.env.BITREFILL_API_KEY ?? "").digest("hex");
@@ -245,16 +245,40 @@ export async function searchProducts(query: string, country = "IN"): Promise<Cat
     items = SIMULATED_CATALOG.filter((p) => `${p.name} ${p.id} ${p.kind}`.toLowerCase().includes(q.toLowerCase().split(" ")[0] ?? ""));
     if (!items.length) items = SIMULATED_CATALOG;
   } else {
-    const params = new URLSearchParams({ q, limit: "20" });
-    if (process.env.BITREFILL_USE_TEST_PRODUCTS === "true") params.set("include_test_products", "true");
-    const [raw, cur] = await Promise.all([api<Record<string, unknown>[]>(`/products/search?${params}`), accountCurrency()]);
-    items = (Array.isArray(raw) ? raw : [])
-      .map((p) => normalize(p, cur))
-      .filter((p): p is CatalogProduct => p !== null)
-      .filter((p) => !country || !p.country || p.country.toUpperCase() === country || p.id.startsWith("test-"));
+    items = await searchLive(q, country, await accountCurrency());
   }
   kvSet(cacheKey, { at: Date.now(), items });
   return withLivePrices(items);
+}
+
+const SEARCH_PAGE = 50, SEARCH_PAGES = 3, SEARCH_ENOUGH = 12;
+function countryName(code: string): string | null {
+  try { const name = new Intl.DisplayNames(["en"], { type: "region" }).of(code); return name && name !== code ? name : null; } catch { return null; }
+}
+/**
+ * Bitrefill's search ignores the country and ranks worldwide, so a broad query ("esim") can fill a whole page with
+ * other countries' products and leave nothing for the campaign's country. Read up to three pages of 50, and if the
+ * country still has nothing, also search "<query> <country name>" (for example "esim India").
+ */
+async function searchLive(q: string, country: string, cur: string): Promise<CatalogProduct[]> {
+  const found = new Map<string, CatalogProduct>();
+  const fits = (p: CatalogProduct) => !country || !p.country || p.country.toUpperCase() === country || p.id.startsWith("test-");
+  // Test products match every country, so they don't count as finding something for this one.
+  const real = () => [...found.values()].filter((p) => !p.id.startsWith("test-") && p.inStock && p.kind !== "topup").length;
+  const page = async (query: string, start: number) => {
+    const params = new URLSearchParams({ q: query.slice(0, 100), limit: String(SEARCH_PAGE), start: String(start) });
+    if (process.env.BITREFILL_USE_TEST_PRODUCTS === "true") params.set("include_test_products", "true");
+    const raw = await api<Record<string, unknown>[]>(`/products/search?${params}`);
+    const list = Array.isArray(raw) ? raw : [];
+    for (const p of list.map((r) => normalize(r, cur))) if (p && fits(p) && !found.has(p.id)) found.set(p.id, p);
+    return list.length;
+  };
+  for (let i = 0; i < SEARCH_PAGES; i++) {
+    if ((await page(q, i * SEARCH_PAGE)) < SEARCH_PAGE || real() >= SEARCH_ENOUGH) break;
+  }
+  const name = country ? countryName(country) : null;
+  if (!real() && name && !q.toLowerCase().includes(name.toLowerCase())) await page(`${q} ${name}`, 0);
+  return [...found.values()];
 }
 
 export async function getProduct(id: string, fresh = false): Promise<CatalogProduct | null> {
