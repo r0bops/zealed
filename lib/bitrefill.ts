@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 // Bitrefill REST v2 client. Only fulfill.ts may call the purchase/order methods.
 // Never log response bodies from createInvoice/getInvoice/getOrder: they can contain redemption codes.
+import { btcUsdRate, fixedBtcUsd, type BtcUsdRate } from "./btc-rate";
 import { kvGet, kvSet } from "./orders";
 
 const BASE = "https://api.bitrefill.com/v2";
@@ -24,6 +25,7 @@ export interface CatalogPackage {
   value: string; // exactly what buy expects; copy, never retype
   packageId?: string; // e.g. "airtel-bundles-india<&>199: ul calls + 2gb data"
   faceAmount: number | null; // face value in the product's currency (e.g. 199 INR)
+  priceRaw?: number | null; // Bitrefill's price in the account currency (satoshis for a BTC account); cached as-is
   priceCents: number | null; // our cost in USD cents, null when it can't be priced safely
 }
 export interface CatalogProduct {
@@ -36,6 +38,7 @@ export interface CatalogProduct {
   packages: CatalogPackage[];
   range?: { min: number; max: number; step: number; priceRate: number | null };
   accountCurrency: string; // currency Bitrefill prices are expressed in (our balance currency)
+  btcUsd?: BtcUsdRate | null; // the rate priceCents were computed at (BTC accounts only)
 }
 
 export interface RedemptionInfo {
@@ -148,15 +151,15 @@ export function kindOf(p: Record<string, unknown>): ProductKind | null {
 
 /**
  * Bitrefill quotes `price` in the account's balance currency. For a BTC account that's satoshis,
- * converted at a fixed BTC_USD_RATE (stated in the README, like ZEC_USD_RATE).
+ * converted at the live BTC/USD rate (lib/btc-rate.ts), falling back to BTC_USD_RATE.
  * Any other currency we don't know how to price returns null, so the product can't be bought.
  */
-export function priceToCents(price: unknown, accountCurrency: string): number | null {
+export function priceToCents(price: unknown, accountCurrency: string, btcUsd: number = fixedBtcUsd()): number | null {
   if (typeof price !== "number" || !Number.isFinite(price) || price <= 0) return null;
   const cur = accountCurrency.toUpperCase();
   if (cur === "USD") return Math.round(price * 100);
   if (cur === "BTC") {
-    const rate = Number(process.env.BTC_USD_RATE || 70_000);
+    const rate = btcUsd;
     if (!Number.isFinite(rate) || !(rate > 0)) return null;
     const sats = price; // REST BTC account prices are satoshis; never guess units from magnitude.
     return Math.max(1, Math.round((sats * rate) / 1_000_000)); // sats / 1e8 * rate * 100
@@ -180,6 +183,7 @@ export function normalize(p: Record<string, unknown>, accountCurrency: string): 
       value: String(k.value),
       packageId: (k.package_id as string) ?? (k.id as string) ?? undefined,
       faceAmount: typeof k.amount === "number" ? k.amount : Number.isFinite(Number(k.value)) ? Number(k.value) : null,
+      priceRaw: typeof k.price === "number" && Number.isFinite(k.price) ? k.price : null,
       priceCents: priceToCents(k.price, accountCurrency),
     })),
     range:
@@ -191,11 +195,28 @@ export function normalize(p: Record<string, unknown>, accountCurrency: string): 
 }
 
 const CATALOG_TTL_MS = 10 * 60_000;
-const CACHE_V = "v2"; // bump when the normalized shape or pricing changes
+const CACHE_V = "v3"; // bump when the normalized shape or pricing changes
 
 function cacheScope(): string {
   const account = createHash("sha256").update(process.env.BITREFILL_API_KEY ?? "").digest("hex");
-  return `${CACHE_V}:${isSimulated() ? "fake" : "live"}:${account}:${process.env.BITREFILL_USE_TEST_PRODUCTS === "true"}:${process.env.BTC_USD_RATE ?? "70000"}`;
+  // Raw account-currency prices are cached; USD cents are recomputed on read, so a rate change never busts the cache.
+  return `${CACHE_V}:${isSimulated() ? "fake" : "live"}:${account}:${process.env.BITREFILL_USE_TEST_PRODUCTS === "true"}`;
+}
+
+/** Recompute USD cents for a BTC-priced product at the current BTC/USD rate. */
+export function reprice(item: CatalogProduct, rate: BtcUsdRate): CatalogProduct {
+  if (item.accountCurrency !== "BTC") return item;
+  return {
+    ...item,
+    btcUsd: rate,
+    packages: item.packages.map((k) => ({ ...k, priceCents: k.priceRaw != null ? priceToCents(k.priceRaw, "BTC", rate.rate) : k.priceCents })),
+  };
+}
+
+async function withLivePrices(items: CatalogProduct[]): Promise<CatalogProduct[]> {
+  if (!items.some((p) => p.accountCurrency === "BTC")) return items; // no rate fetch for USD accounts
+  const rate = await btcUsdRate();
+  return items.map((p) => reprice(p, rate));
 }
 
 export async function accountCurrency(): Promise<string> {
@@ -213,7 +234,7 @@ export async function searchProducts(query: string, country = "IN"): Promise<Cat
   const q = query.trim().slice(0, 80);
   const cacheKey = `catalog:${cacheScope()}:${country}:${createHash("sha256").update(q.toLowerCase()).digest("hex")}`;
   const cached = kvGet<{ at: number; items: CatalogProduct[] }>(cacheKey);
-  if (cached && Date.now() - cached.at < CATALOG_TTL_MS) return cached.items;
+  if (cached && Date.now() - cached.at < CATALOG_TTL_MS) return withLivePrices(cached.items);
 
   let items: CatalogProduct[];
   if (isSimulated()) {
@@ -229,20 +250,20 @@ export async function searchProducts(query: string, country = "IN"): Promise<Cat
       .filter((p) => !country || !p.country || p.country.toUpperCase() === country || p.id.startsWith("test-"));
   }
   kvSet(cacheKey, { at: Date.now(), items });
-  return items;
+  return withLivePrices(items);
 }
 
 export async function getProduct(id: string, fresh = false): Promise<CatalogProduct | null> {
   if (isSimulated()) return SIMULATED_CATALOG.find((p) => p.id === id) ?? null;
   const cacheKey = `product:${cacheScope()}:${id}`;
   const cached = kvGet<{ at: number; item: CatalogProduct }>(cacheKey);
-  if (!fresh && cached && Date.now() - cached.at < CATALOG_TTL_MS) return cached.item;
+  if (!fresh && cached && Date.now() - cached.at < CATALOG_TTL_MS) return (await withLivePrices([cached.item]))[0];
   try {
     const [raw, cur] = await Promise.all([api<Record<string, unknown>>(`/products/${encodeURIComponent(id)}`), accountCurrency()]);
     const item = normalize(raw, cur);
     if (!item) return null; // a product kind checkout can't serve
     kvSet(cacheKey, { at: Date.now(), item });
-    return item;
+    return (await withLivePrices([item]))[0];
   } catch (e) {
     if (e instanceof BitrefillError && e.status === 404) return null;
     throw e;
@@ -261,7 +282,7 @@ export function priceFor(p: CatalogProduct, value: string): number | null {
   if (!Number.isFinite(v) || v < range.min || v > range.max || Math.abs(steps - Math.round(steps)) > 1e-8) return null;
   if (!range.priceRate || !Number.isFinite(range.priceRate) || range.priceRate <= 0) return null;
   const raw = v * range.priceRate;
-  const cents = priceToCents(p.accountCurrency === "BTC" ? Math.ceil(raw) : raw, p.accountCurrency);
+  const cents = priceToCents(p.accountCurrency === "BTC" ? Math.ceil(raw) : raw, p.accountCurrency, p.btcUsd?.rate);
   return Number.isSafeInteger(cents) && cents! > 0 ? cents : null;
 }
 

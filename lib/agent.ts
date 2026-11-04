@@ -68,6 +68,7 @@ async function priceCheck(productId: string, packageValue: string) {
       priceCents,
       priceUsd: formatUsd(priceCents),
       authorisationZec: zatToZec(centsToZat(priceCents, ZEC_USD_RATE)),
+      btcUsd: product.btcUsd ? { rate: Math.round(product.btcUsd.rate), source: product.btcUsd.source, at: product.btcUsd.at } : null,
       verdict: decision.verdict,
       reason: decision.reason,
       checks: decision.checks,

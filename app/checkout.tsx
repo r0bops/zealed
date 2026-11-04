@@ -17,6 +17,7 @@ export interface CheckoutProposal {
   verdict: "ALLOW" | "REQUIRE_HUMAN" | "BLOCK";
   approved: boolean;
   needsPhone: boolean;
+  btcUsd?: { rate: number; source: string } | null;
 }
 
 interface PublicOrder {
@@ -149,7 +150,10 @@ export function CheckoutCard({ proposal }: { proposal: CheckoutProposal }) {
       >
         {busy ? "Creating your key and payment request…" : "Create payment request"}
       </button>
-      <p className="text-xs text-muted">A one-time key is created in this browser. Only it can open what you buy.</p>
+      <p className="text-xs text-muted">
+        A one-time key is created in this browser. Only it can open what you buy.
+        {proposal.btcUsd && ` Priced at BTC/USD ${proposal.btcUsd.rate.toLocaleString("en-US")} (${proposal.btcUsd.source}).`}
+      </p>
     </div>
   );
 }
