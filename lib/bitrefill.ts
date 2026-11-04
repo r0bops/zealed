@@ -71,7 +71,10 @@ export interface BitrefillOrder {
   redemption_info?: string | RedemptionInfo;
 }
 
-export const FINAL_INVOICE_STATUSES = ["complete", "blocked", "denied", "payment_error", "not_delivered"];
+// Invoice-level final states seen in docs and live responses ("all_delivered" is what a delivered invoice reports).
+// Callers must still check each order: an invoice status alone doesn't prove delivery.
+export const FINAL_INVOICE_STATUSES = ["complete", "all_delivered", "partially_delivered", "all_failed", "blocked", "denied", "payment_error", "not_delivered", "expired"];
+export const FINAL_ORDER_STATUSES = ["delivered", "failed", "refunded"];
 
 /** Catalog source: simulated when there's no API key (or BITREFILL_MODE=fake). */
 export function isSimulated(): boolean {

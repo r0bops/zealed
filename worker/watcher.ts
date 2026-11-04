@@ -1,7 +1,7 @@
 // Payment watcher: matches shielded receipts to orders by memo, moves them seen -> paid,
 // releases resold codes and triggers fulfillment. Acts at most once per txid.
 import { memoCartHash } from "../lib/cart";
-import { fulfillOrder } from "../lib/fulfill";
+import { fulfillOrder, reconcileOrder } from "../lib/fulfill";
 import { log, safeError } from "../lib/log";
 import { getOrderByMemo, now, ordersInStatus, transition } from "../lib/orders";
 import { extractMemoTag } from "../lib/zip321";
@@ -9,6 +9,8 @@ import { MIN_CONFIRMATIONS, zcash } from "../lib/zcash";
 
 const TICK_MS = Number(process.env.WATCHER_TICK_MS ?? 4_000);
 const inFlight = new Set<string>();
+const RECONCILE_EVERY_MS = 60_000; // Bitrefill allows 60 invoice reads per 10 minutes
+const lastReconcile = new Map<string, number>();
 
 export async function tick(): Promise<void> {
   const backend = await zcash();
@@ -57,6 +59,17 @@ export async function tick(): Promise<void> {
     inFlight.add(o.id);
     fulfillOrder(o.id)
       .catch((e) => log.error("fulfill crashed", { orderId: o.id, err: safeError(e) }))
+      .finally(() => inFlight.delete(o.id));
+  }
+
+  // Settle purchases whose outcome was uncertain (read-only towards Bitrefill: never buys again).
+  for (const o of ordersInStatus(["failed_uncertain"])) {
+    if (!o.bitrefillInvoiceId || inFlight.has(o.id)) continue;
+    if (now() - (lastReconcile.get(o.id) ?? 0) < RECONCILE_EVERY_MS) continue;
+    lastReconcile.set(o.id, now());
+    inFlight.add(o.id);
+    reconcileOrder(o.id)
+      .catch((e) => log.error("reconcile crashed", { orderId: o.id, err: safeError(e) }))
       .finally(() => inFlight.delete(o.id));
   }
 

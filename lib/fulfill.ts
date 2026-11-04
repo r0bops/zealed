@@ -5,6 +5,7 @@ import {
   BitrefillError,
   createInvoice,
   FINAL_INVOICE_STATUSES,
+  FINAL_ORDER_STATUSES,
   getInvoice,
   getProduct,
   priceFor,
@@ -98,10 +99,14 @@ export async function fulfillOrder(orderId: string): Promise<FulfillResult> {
     }
     patchOrder(order.id, { bitrefillInvoiceId: invoiceId });
 
-    // Poll until the invoice is final, then check each order (complete != delivered).
+    // Poll until the invoice's order is final (or the invoice reports a final state), then read the order.
     const started = Date.now();
     let invoice = await getInvoice(invoiceId, kind);
-    while (!FINAL_INVOICE_STATUSES.includes(invoice.status) && Date.now() - started < POLL_TIMEOUT_MS) {
+    while (
+      !FINAL_ORDER_STATUSES.includes(invoice.orders?.[0]?.status ?? "") &&
+      !FINAL_INVOICE_STATUSES.includes(invoice.status) &&
+      Date.now() - started < POLL_TIMEOUT_MS
+    ) {
       await sleep(POLL_INTERVAL_MS);
       invoice = await getInvoice(invoiceId, kind);
     }
@@ -109,7 +114,7 @@ export async function fulfillOrder(orderId: string): Promise<FulfillResult> {
     if (!first) return finish(order, "failed_uncertain", { failure: "Invoice has no delivery orders; reconcile before retrying" });
 
     let bOrder = await getOrder(first.id);
-    while (bOrder.status !== "delivered" && bOrder.status !== "failed" && bOrder.status !== "refunded" && Date.now() - started < POLL_TIMEOUT_MS) {
+    while (!FINAL_ORDER_STATUSES.includes(bOrder.status) && Date.now() - started < POLL_TIMEOUT_MS) {
       await sleep(POLL_INTERVAL_MS);
       bOrder = await getOrder(first.id);
     }
@@ -130,6 +135,40 @@ export async function fulfillOrder(orderId: string): Promise<FulfillResult> {
   } finally {
     phone = undefined;
     if (order.type === "topup") patchOrder(order.id, { sealedPhone: null, wipedAt: Date.now() });
+  }
+}
+
+/**
+ * Settle an order left failed_uncertain after its Bitrefill invoice was created. Read-only towards
+ * Bitrefill: it never creates another invoice, so it can't buy twice. Delivered → seal to the buyer;
+ * failed/refunded → failed; anything else stays uncertain for the next attempt.
+ */
+export async function reconcileOrder(orderId: string): Promise<FulfillResult> {
+  const order = getDbOrder(orderId);
+  if (!order || order.status !== "failed_uncertain" || !order.bitrefillInvoiceId) return { status: "skipped" };
+  const kind = order.type as ProductKind;
+  try {
+    const invoice = await getInvoice(order.bitrefillInvoiceId, kind);
+    const first = invoice.orders?.[0];
+    if (!first) return { status: "skipped" };
+    let bOrder = await getOrder(first.id);
+    if (bOrder.status === "delivered") {
+      const content = toSealedContent(kind, bOrder.redemption_info, order.fulfillMode ?? "live");
+      const sealedPayload = await seal(encodeContent(content), order.buyerPubKey);
+      bOrder = { id: bOrder.id, status: bOrder.status }; // drop redemption data from scope
+      transition(order.id, "failed_uncertain", "delivered", { bitrefillOrderId: first.id, sealedPayload, releasedAt: Date.now(), failure: null });
+      log.info("reconciled order", { orderId: order.id, status: "delivered" });
+      return { status: "delivered", bitrefillOrderId: first.id };
+    }
+    if (bOrder.status === "failed" || bOrder.status === "refunded") {
+      transition(order.id, "failed_uncertain", "failed", { bitrefillOrderId: first.id, failure: `Bitrefill order ${bOrder.status}` });
+      log.info("reconciled order", { orderId: order.id, status: "failed" });
+      return { status: "failed", bitrefillOrderId: first.id };
+    }
+    return { status: "skipped" };
+  } catch (e) {
+    log.warn("reconcile failed", { orderId: order.id, err: safeError(e) });
+    return { status: "skipped" };
   }
 }
 
