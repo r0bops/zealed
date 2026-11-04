@@ -2,13 +2,19 @@
 // Mints signed proposals like the agent does, then plays the browser: key, sealed phone,
 // order, SIMULATED payment, wait for delivery, decrypt locally. Never makes a real purchase.
 // Run: npx tsx --env-file=.env.local scripts/e2e-simulated.ts
+import { getProduct, priceFor } from "../lib/bitrefill";
 import { decodeContent } from "../lib/payload";
 import { PROPOSAL_TTL_MS, signProposal, type Proposal } from "../lib/proposal";
 import { generateKeyPair, open, seal } from "../lib/sodium";
 
 const BASE = process.env.E2E_BASE ?? "http://localhost:3000";
 
-async function run(name: string, p: Omit<Proposal, "v" | "sessionId" | "exp">, phone?: string) {
+async function run(name: string, input: Omit<Proposal, "v" | "sessionId" | "exp" | "priceCents">, phone?: string) {
+  // Price exactly as the agent does (live catalog and BTC/USD rate), so the server's re-check agrees.
+  const product = await getProduct(input.productId);
+  const priceCents = product ? priceFor(product, input.packageValue) : null;
+  if (priceCents == null) return console.log(`✗ ${name}: cannot price ${input.productId} ${input.packageValue}`);
+  const p = { ...input, priceCents };
   const token = signProposal({ v: 1, sessionId: "e2e-simulated", exp: Date.now() + PROPOSAL_TTL_MS, ...p });
   const buyer = await generateKeyPair();
   let sealedPhone: string | undefined;
@@ -52,9 +58,9 @@ async function run(name: string, p: Omit<Proposal, "v" | "sessionId" | "exp">, p
 }
 
 async function main() {
-  await run("top-up (auto)", { productId: "airtel-bundles-india", productName: "Airtel Bundles India", kind: "topup", packageValue: "199: ul calls + 2gb data", priceCents: 195, verdict: "ALLOW", approved: false }, "+919999999999");
-  await run("eSIM (auto)", { productId: "bitrefill-esim-india", productName: "Bitrefill eSIM India", kind: "esim", packageValue: "1GB, 7 Days", priceCents: 347, verdict: "ALLOW", approved: false });
-  await run("gift card (approved)", { productId: "flipkart-india", productName: "Flipkart India", kind: "giftcard", packageValue: "1000", priceCents: 1000, verdict: "REQUIRE_HUMAN", approved: true });
-  await run("gift card (NOT approved)", { productId: "flipkart-india", productName: "Flipkart India", kind: "giftcard", packageValue: "1000", priceCents: 1000, verdict: "REQUIRE_HUMAN", approved: false });
+  await run("top-up (auto)", { productId: "airtel-bundles-india", productName: "Airtel Bundles India", kind: "topup", packageValue: "199: ul calls + 2gb data", verdict: "ALLOW", approved: false }, "+919999999999");
+  await run("eSIM (auto)", { productId: "bitrefill-esim-india", productName: "Bitrefill eSIM India", kind: "esim", packageValue: "1GB, 7 Days", verdict: "ALLOW", approved: false });
+  await run("gift card (approved)", { productId: "flipkart-india", productName: "Flipkart India", kind: "giftcard", packageValue: "1000", verdict: "REQUIRE_HUMAN", approved: true });
+  await run("gift card (NOT approved)", { productId: "flipkart-india", productName: "Flipkart India", kind: "giftcard", packageValue: "1000", verdict: "REQUIRE_HUMAN", approved: false });
 }
 main();
