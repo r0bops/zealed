@@ -56,7 +56,7 @@ export function SealedChest() {
         <polygon points="144.1,305.0 300.0,395.0 300.0,290.6 144.1,200.6" fill="url(#chestGL)" />
         <polygon points="455.9,305.0 300.0,395.0 300.0,290.6 455.9,200.6" fill="url(#chestGR)" />
         <polygon points="216.6,346.9 227.5,353.1 227.5,248.8 216.6,242.5" fill="#F4B728" opacity="0.9"/>
-        <polygon points="383.4,346.9 372.5,353.1 372.5,248.8 383.4,242.5" fill="#B9871A" opacity="0.9"/>
+        <polygon points="383.4,346.9 372.5,353.1 372.5,248.8 383.4,242.5" fill="#F4B728" opacity="0.6"/>
         <polyline points="144.1,305.0 300.0,395.0 455.9,305.0" fill="none" stroke="#3A3A3A" strokeWidth="1.5" strokeLinejoin="round" />
         <polyline points="300.0,395.0 300.0,290.6" fill="none" stroke="#4A4A4A" strokeWidth="1.5" strokeLinejoin="round" />
         <polygon className="zl-interior" points="168,188 300,262 432,188 300,214" fill="#F4B728"/>
@@ -67,7 +67,7 @@ export function SealedChest() {
           <polygon points="468.4,169.1 300.0,266.3 300.0,221.3 427.8,147.5" fill="#141414" />
           <polygon points="300.0,73.7 427.8,147.5 300.0,221.3 172.2,147.5" fill="url(#chestGT)" />
           <polygon points="210.4,239.8 221.3,246.1 221.3,220.8 210.4,214.5" fill="#F4B728" opacity="0.9"/>
-          <polygon points="389.6,239.8 378.7,246.1 378.7,220.8 389.6,214.5" fill="#B9871A" opacity="0.9"/>
+          <polygon points="389.6,239.8 378.7,246.1 378.7,220.8 389.6,214.5" fill="#F4B728" opacity="0.6"/>
           <polyline className="zl-sealLine" points="131.6,197.4 300.0,294.7 468.4,197.4" fill="none" stroke="#F4B728" strokeWidth="7" strokeLinejoin="round" opacity="0.25" filter="url(#chestBlur)"/>
           <polyline className="zl-sealLine" points="131.6,197.4 300.0,294.7 468.4,197.4" fill="none" stroke="#F4B728" strokeWidth="2" strokeLinejoin="round" />
           <polyline points="300.0,291.5 300.0,266.3 300.0,221.3" fill="none" stroke="#4A4A4A" strokeWidth="1.5" strokeLinejoin="round" />
