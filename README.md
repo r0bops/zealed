@@ -18,7 +18,7 @@ DRAFT. Before submitting:
 | **What it is** | Web app with an AI shopping agent |
 | **Live URL** | TODO: https://… |
 | **Demo video** | TODO: https://… (2–3 minutes) |
-| **Testnet txid** | TODO: `<txid>` · https://zexplorer.app/testnet/tx/TODO |
+| **Testnet txid** | `1bb9548ea9ee04da491071e86f7287391aa52f3260c51ce6219324615768defd`: a shielded order payment, mined at height 4581712. [zexplorer](https://zexplorer.app/testnet/tx/1bb9548ea9ee04da491071e86f7287391aa52f3260c51ce6219324615768defd) · [zcashexplorer](https://testnet.zcashexplorer.app/transactions/1bb9548ea9ee04da491071e86f7287391aa52f3260c51ce6219324615768defd) <!-- TODO: on 4 Nov, zexplorer's testnet index stopped at 4505881, so it shows "not found". Check the zcashexplorer link in a browser before submitting. --> |
 | **Real purchase invoice ID** | TODO: Bitrefill invoice ID |
 | **Team** | TODO: Name (@handle) |
 
@@ -57,7 +57,7 @@ DRAFT. Before submitting:
 1. Open TODO: live URL.
 2. Ask: "Get me the cheapest Airtel top-up" or "A ₹50 Flipkart gift card".
 3. Follow the checkout card. Pay the shielded request from a testnet wallet: the [Noir Wallet testnet extension](https://github.com/NoirWallet/noir-wallet/releases) (load the `-testnet.zip` build unpacked) or any NU7 testnet wallet that can scan a ZIP-321 QR code.
-4. You should see the order go from seen to paid, then delivered. Your browser decrypts the result locally, and the code stays masked until you click **Reveal**.
+4. You should see the order go from awaiting payment to paid once the payment is mined, then to delivered. That takes about 1–2 minutes. Your browser decrypts the result locally, and the code stays masked until you click **Reveal**.
 
 <!-- TODO (decide): on the public URL, each paid order triggers a real Bitrefill purchase from our event credits, within the caps in section 6. Decide whether judges get live or test purchases there, and say so here. -->
 
@@ -103,13 +103,15 @@ pnpm zkool:pay <orderId>
 | Guardrails, approval card and signed proposal | ✅ real | `lib/guardrails.ts`, `lib/proposal.ts`, `lib/safety.test.ts` |
 | One-time browser key; phone number sealed in the browser | ✅ real | `lib/keystore.ts`, `app/checkout.tsx` |
 | ZIP-321 request with order tag + cart hash memo | ✅ real | `lib/zip321.ts`, `lib/cart.ts` |
-| Shielded payment from the buyer's wallet (Noir Wallet or CLI) | 🟡 built; not yet run on testnet | TODO: txid |
-| Watch-only detection and confirmation via zkool_graphql | 🟡 built and unit-tested against a stubbed GraphQL server; not yet run on testnet | TODO: txid, video timestamp |
-| Bitrefill purchase from balance, polled until delivered | 🟡 verified in simulate mode; no real purchase yet | TODO: invoice ID |
-| Result sealed to the buyer, decrypted locally, phone wiped | ✅ in the simulated end-to-end run and the tests | `scripts/e2e-simulated.ts`, `lib/safety.test.ts` |
+| Shielded payment from a wallet (CLI payer through `pnpm zkool:pay`) | ✅ real, NU7 testnet | txid `1bb9548e…8defd`: 0.12966881 TAZ for order `80cceeb9`, mined at 4581712 about 60 s after sending |
+| Shielded payment from the buyer's browser with Noir Wallet | 🟡 built; not yet run on testnet | TODO: txid |
+| Watch-only detection and confirmation via zkool_graphql | ✅ real | The watch-only account (UFVK, birth 4581688) matched the memo tag, cart hash, exact amount and recipient, then marked the order paid after 1 confirmation. TODO: video timestamp |
+| Bitrefill purchase from balance, polled until delivered | 🟡 that run used SIMULATED fulfillment; no real purchase yet | TODO: invoice ID |
+| Result sealed to the buyer, decrypted locally, phone wiped | ✅ in the real-payment run (with simulated fulfillment) and the tests | order `80cceeb9`, `lib/safety.test.ts` |
 
 **Known limitations:**
 - A `fake` Zcash backend exists for local development only. It's labelled SIMULATED in the UI, it's refused in production, and it's never used in the demo.
+- With zkool, the "seen in mempool" state doesn't appear. The transaction shows up only once it's mined, so orders go straight from awaiting payment to paid.
 - Bitrefill delivery is detected by polling, not webhooks.
 - ZEC is priced at a fixed demo rate (`ZEC_USD_RATE`), because TAZ has no market price. BTC/USD is fetched live, with a configured fallback.
 - The resale flow (seller-sealed codes) isn't built yet.
