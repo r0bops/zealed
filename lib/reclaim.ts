@@ -3,6 +3,7 @@ import { createHash, createHmac } from "node:crypto";
 import { z } from "zod";
 import { ReclaimProofRequest, verifyProof, type Proof } from "@reclaimprotocol/js-sdk";
 import { serverSecret } from "./server-secret";
+import { createShortLink } from "./short-links";
 
 /**
  * Reclaim (zkTLS) mission verification.
@@ -85,6 +86,27 @@ export async function createMissionRequest(campaignId: string, playerPublicKey: 
   const bare = c.appSecret.replace(/^0x/i, "").toLowerCase();
   if (bare.length >= 16 && json.toLowerCase().includes(bare)) throw new MissionProofError("Reclaim request was refused for safety.", false);
   return json;
+}
+
+/**
+ * What the phone QR code should encode for a request: Reclaim's short link when its shortener answers, otherwise a
+ * `/v/<id>` path on this site that redirects to the full link (about 1.7 KB, too dense to scan). The link is built
+ * here from the server's own request, so the redirect can only lead to Reclaim. Null if it can't be built; the page
+ * then shows the full link.
+ */
+export async function missionQrLink(json: string): Promise<string | null> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const request = await ReclaimProofRequest.fromJsonString(json);
+    const url = await Promise.race([
+      request.getRequestUrl(),
+      new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error("timeout")), 8000); }),
+    ]);
+    if (typeof url !== "string" || !url.startsWith("https://")) return null;
+    return url.length <= 300 ? url : `/v/${createShortLink(url)}`;
+  } catch {
+    return null;
+  } finally { clearTimeout(timer); }
 }
 
 const proofShape = z.looseObject({

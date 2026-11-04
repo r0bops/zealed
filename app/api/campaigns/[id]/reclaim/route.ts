@@ -3,7 +3,7 @@ import { rateLimit } from "@/lib/rate-limit";
 import { bearer, CampaignError, claimForCampaign, invitation } from "@/lib/campaigns";
 import { isPublicKey } from "@/lib/sodium";
 import { campaignFailure, campaignResponse, readBody } from "@/lib/campaign-http";
-import { createMissionRequest, missionLabel, MissionProofError, reclaimEnabled } from "@/lib/reclaim";
+import { createMissionRequest, missionLabel, missionQrLink, MissionProofError, reclaimEnabled } from "@/lib/reclaim";
 // POST, not GET, so the player's public key stays out of URLs and access logs.
 const input = z.object({ publicKey: z.string().max(100) });
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
@@ -19,7 +19,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     if (claimForCampaign(id)) throw new CampaignError(409, "This invitation has already been claimed.");
     if (c.attempts >= 5) throw new CampaignError(429, "Attempt limit reached. Ask for a new invitation.");
     try {
-      return campaignResponse({ request: await createMissionRequest(id, body.data.publicKey), label: missionLabel() });
+      const request = await createMissionRequest(id, body.data.publicKey);
+      return campaignResponse({ request, qr: await missionQrLink(request), label: missionLabel() });
     } catch (e) {
       throw e instanceof MissionProofError ? new CampaignError(503, e.message) : e;
     }
