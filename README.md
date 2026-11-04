@@ -833,7 +833,7 @@ At runtime, Zealed uses Claude Haiku 5.5 for one job: choosing a package from th
 
 ## Feedback
 
-What broke, confused or slowed us down with Zcash tooling, Bitrefill and Reclaim is logged in [FEEDBACK_NOTES.md](FEEDBACK_NOTES.md). TODO: the team's own FEEDBACK.md.
+See [FEEDBACK.md](FEEDBACK.md): what broke, confused or slowed us down with Bitrefill, the Zcash tooling and Reclaim. Our engineering notes are in [FEEDBACK_NOTES.md](FEEDBACK_NOTES.md).
 
 ## License
 
