@@ -45,7 +45,7 @@ export function SealedLanding() {
               <p className={styles.heroLead}>Quizzes, social actions and event tasks. Complete the checklist, then choose a gift card, eSIM, testnet Zcash or a custom prize. Codes stay sealed to your browser.</p>
               <div className={styles.ctas}>
                 <Link className={`${styles.btn} ${styles.goldBtn}`} href="/claim">Claim a reward →</Link>
-                <Link className={styles.btn} href="/orders">My rewards →</Link>
+                <Link className={styles.btn} href="/campaigns">Fund a reward →</Link>
               </div>
             </div>
             <div className={styles.chest}>
@@ -191,14 +191,14 @@ export function SealedLanding() {
               </div>
               <div className={styles.row}>
                 <span className={styles.eyebrow}>Bitrefill invoice</span>
-                <span className={styles.value}>7d8e4569-daa5-4de9-9a35-518b7d42c47f <span className={styles.soon}>Bitrefill test product</span></span>
+                <span className={styles.value}>7d8e4569-daa5-4de9-9a35-518b7d42c47f <span className={styles.soon}>real Bitrefill API order · test product, not redeemable</span></span>
               </div>
               <div className={styles.row}>
                 <span className={styles.eyebrow}>First checkout tx</span>
                 <a className={`${styles.value} ${styles.gold}`} href={`${EXPLORER}/transactions/${FIRST_TX}`}>{FIRST_TX} ↗</a>
               </div>
               <div className={styles.row}>
-                <span className={styles.eyebrow}>Height</span>
+                <span className={styles.eyebrow}>First checkout height</span>
                 <span className={styles.value}>4581712</span>
               </div>
             </div>
@@ -211,6 +211,7 @@ export function SealedLanding() {
             <h2>The next reward is sealed for you.</h2>
             <div className={`${styles.ctas} ${styles.center}`}>
               <Link className={`${styles.btn} ${styles.goldBtn}`} href="/claim">Claim a reward →</Link>
+              <Link className={styles.btn} href="/campaigns">Fund a reward →</Link>
               <Link className={styles.btn} href="/orders">My rewards →</Link>
             </div>
           </div>
