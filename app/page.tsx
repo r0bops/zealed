@@ -8,15 +8,15 @@ export const dynamic = "force-dynamic";
 
 const POINTS = [
   {
-    title: "Sealed on your device",
-    body: "Codes, eSIM activation strings and phone numbers are encrypted in your browser. Our database, logs and AI only hold ciphertext.",
+    title: "Sealed for your device",
+    body: "Your browser encrypts phone numbers. A fulfillment service briefly handles Bitrefill codes and seals them to your browser’s key. Chat is not a secure place for secrets.",
   },
   {
     title: "Shielded ZEC authorises",
     body: "A shielded Zcash testnet payment authorises each purchase. Zealed then pays Bitrefill from its credit balance, within fixed caps.",
   },
   {
-    title: "The agent never sees secrets",
+    title: "Separate checkout for secrets",
     body: "It searches, prices and proposes. A separate function fulfils, seals the result to your key and wipes phone numbers.",
   },
 ];

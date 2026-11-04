@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Zealed: sealed gift cards, eSIMs and top-ups",
   description:
-    "An AI shopping agent for gift cards, eSIMs and phone top-ups. Codes are encrypted on your device; a shielded ZEC payment authorises each purchase.",
+    "An AI shopping agent for gift cards, eSIMs and phone top-ups. Codes are sealed to your device’s key; a shielded ZEC payment authorises each purchase.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

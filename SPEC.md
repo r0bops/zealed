@@ -110,7 +110,7 @@ agent_events  id, sessionId, kind(tool_call|tool_result|message), name, payload(
 ```
 
 - Money is stored in integer cents and zatoshis, never as floats.
-- `codeFingerprint` is a keyed hash computed in the seller's browser, so duplicate listings can be detected without revealing the code.
+- `codeFingerprint` is an unkeyed hash computed in the seller's browser, for duplicate detection. It permits offline guessing of low-entropy codes and is not a confidentiality guarantee.
 
 ## API
 
