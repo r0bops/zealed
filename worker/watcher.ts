@@ -20,9 +20,14 @@ export async function tick(): Promise<void> {
     const order = getOrderByMemo(tag);
     if (!order) continue;
     if (order.txid && order.txid !== r.txid) continue; // already matched to another payment
-    if (r.pool === "transparent") continue; // shielded only
+    if (r.recipient !== order.payAddr) continue;
+    if (backend.simulated ? r.pool !== "simulated" : !["ironwood", "sapling"].includes(r.pool ?? "")) continue;
+    if (!Number.isSafeInteger(r.amountZat) || r.amountZat !== order.amountZat) continue;
+    if (!Number.isSafeInteger(r.confirmations) || r.confirmations < 0) continue;
+    if (r.minedHeight !== null && (!Number.isSafeInteger(r.minedHeight) || r.minedHeight < 1)) continue;
+    if (order.status === "awaiting_payment" && order.expiresAt <= now()) continue;
     const hash = memoCartHash(r.memo);
-    if (order.cartHash && hash && hash !== order.cartHash) {
+    if (order.cartHash && hash !== order.cartHash) {
       log.warn("receipt cart hash mismatch", { orderId: order.id, txid: r.txid });
       continue;
     }

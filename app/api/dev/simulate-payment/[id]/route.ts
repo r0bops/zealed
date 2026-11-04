@@ -4,6 +4,7 @@ import { simulatePayment, zcash } from "@/lib/zcash";
 
 /** DEV ONLY: pretends a shielded payment arrived. Refused unless the fake (SIMULATED) backend is active. */
 export async function POST(_req: Request, ctx: { params: Promise<{ id: string }> }) {
+  if (process.env.NODE_ENV === "production") return Response.json({ error: "simulated payments are disabled" }, { status: 403 });
   const backend = await zcash();
   if (!backend.simulated) return Response.json({ error: "simulated payments are disabled" }, { status: 403 });
   const { id } = await ctx.params;
