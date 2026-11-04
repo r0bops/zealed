@@ -5,7 +5,10 @@ import { Steps } from "../role-switch";
 import { NoirPayButton } from "../noir-pay";
 import type { CatalogProduct } from "@/lib/bitrefill";
 import type { Choice } from "@/lib/campaigns";
-type Summary = { id: string; title: string; budgetCents: number; country: string; claimed: number; delivered: number; reservedCents: number; deliveredCents: number; status: string; choice: Choice | null };
+import { ProgramBuilder, initialProgram } from "../program-builder";
+import { ProgramAdmin } from "../program-admin";
+import type { ProgramInput, PublicProgram } from "@/lib/program-schema";
+type Summary = { program?: PublicProgram; id: string; title: string; budgetCents: number; country: string; claimed: number; delivered: number; reservedCents: number; deliveredCents: number; status: string; choice: Choice | null };
 type Listing = { campaigns: Summary[]; simulatedCatalog: boolean; purchaseMode: string };
 type Payment = { id: string; to: string; amountZec: string; memo: string; zip321: string; status: string; simulated: boolean; expiresAt: number };
 const TRACK = ["Shared", "Claimed", "Perk chosen", "Paid", "Delivered"];
@@ -20,6 +23,8 @@ function progress(status: string): { done: number; failed: boolean } {
   return { done: 4, failed: true };
 }
 export function CampaignDashboard() {
+  const [program, setProgram] = useState<ProgramInput>(initialProgram);
+  const needsCatalog = program.prizes.some(p => p.kind === "giftcard" || p.kind === "esim");
   const [token, setToken] = useState(""), [login, setLogin] = useState("");
   const [data, setData] = useState<Listing | null>(null), [error, setError] = useState("");
   const [title, setTitle] = useState("Welcome to the community"), [country, setCountry] = useState("IN"), [budget, setBudget] = useState("5.00");
@@ -38,7 +43,7 @@ export function CampaignDashboard() {
   const latest = data?.campaigns[0], latestProgress = latest ? progress(latest.status) : null;
   const fundStep = !latestProgress ? 0 : [0, 1, 1, 2, 3, 4][latestProgress.done];
   return <RewardLayout title="Fund a reward" role="fund">
-    <p className="text-muted">Create one invitation. A player completes a short mission, the agent selects a perk, and you authorise the exact purchase. No deposit is held.</p>
+    <p className="text-muted">Create one invitation. Set required tasks and prize options. A participant completes every task, then chooses one reward. You review social/custom evidence and fulfill the selected prize. No deposit is held.</p>
     {error && <p role="alert" className="rounded-lg border border-danger p-3 text-sm text-danger">{error}</p>}
     {!token ? <form onSubmit={unlock} className={panel}>
       <label className="flex flex-col gap-2">Organizer access token<input autoComplete="current-password" type="password" required minLength={32} value={login} onChange={e => setLogin(e.target.value)} className={field} /></label>
@@ -46,21 +51,21 @@ export function CampaignDashboard() {
     </form> : <>
       <div className="flex items-center justify-between gap-3 text-sm"><p>{data?.simulatedCatalog ? "SIMULATED catalog" : "Live catalog"} · Purchases: <strong>{data?.purchaseMode}</strong>{data?.purchaseMode === "test" && " (not redeemable)"}</p><button className="min-h-11 underline" onClick={() => { setToken(""); setData(null); setInvite(""); setPayment(null); }}>Lock workspace</button></div>
       <Steps label="Funding progress for your latest invitation" steps={["Create invitation", "Share the QR", "Approve & pay", "Delivered"]} current={fundStep} failed={!!latestProgress?.failed} />
-      <section className={panel}><h2 className="text-lg font-semibold">New invitation</h2>
+      <section className={panel}><ProgramBuilder value={program} onChange={setProgram} /><h2 className="text-lg font-semibold">New invitation</h2>
         <label className="flex flex-col gap-2">Campaign name<input className={field} value={title} maxLength={80} onChange={e => setTitle(e.target.value)} /></label>
         <div className="grid gap-4 sm:grid-cols-2"><label className="flex flex-col gap-2">Destination country code<input className={field} value={country} maxLength={2} autoComplete="country" onChange={e => { setCountry(e.target.value.toUpperCase()); setSelected([]); setProducts([]); setEligibility(false); }} /></label><label className="flex flex-col gap-2">Maximum reward (USD)<input className={field} inputMode="decimal" value={budget} onChange={e => setBudget(e.target.value)} /></label></div>
-        <form onSubmit={e => { e.preventDefault(); void run(async () => { const d = await request<{ products: CatalogProduct[] }>(`/api/campaigns/catalog?q=${encodeURIComponent(query)}&country=${encodeURIComponent(country)}`, token); setProducts(d.products); setSearched(true); }); }} className="flex flex-col gap-3">
+        {needsCatalog && <><form onSubmit={e => { e.preventDefault(); void run(async () => { const d = await request<{ products: CatalogProduct[] }>(`/api/campaigns/catalog?q=${encodeURIComponent(query)}&country=${encodeURIComponent(country)}`, token); setProducts(d.products); setSearched(true); }); }} className="flex flex-col gap-3">
           <label className="flex flex-col gap-2">Find eligible perks<input type="search" className={field} value={query} minLength={2} maxLength={60} required onChange={e => setQuery(e.target.value)} /></label><button disabled={busy} className={button}>{busy ? "Working…" : "Search catalog"}</button>
         </form>
         {searched && !products.length && <p className="text-sm text-muted">No gift cards or eSIMs found. Try a different search.</p>}
         <fieldset className="flex flex-col gap-2"><legend className="mb-2 text-sm">Allow up to five products ({selected.length} selected)</legend>{products.map(p => <label key={p.id} className="flex min-h-11 items-start gap-3 rounded-lg border border-line p-3"><input type="checkbox" className="mt-1" checked={selected.includes(p.id)} onChange={e => { setSelected(ids => e.target.checked ? [...ids, p.id].slice(0, 5) : ids.filter(id => id !== p.id)); setEligibility(false); }} /><span className="text-sm">{p.name}<span className="block text-xs text-muted">{p.kind} · {p.country ?? "Check regional eligibility"}</span></span></label>)}</fieldset>
-        <label className="flex min-h-11 items-start gap-3 text-sm"><input type="checkbox" className="mt-1" checked={eligibility} onChange={e => setEligibility(e.target.checked)} />I checked coverage, account requirements and redemption restrictions for these products. Catalog inclusion alone does not prove eligibility.</label>
-        <button disabled={busy || !selected.length || !eligibility} className={button} onClick={() => void run(async () => {
+        <label className="flex min-h-11 items-start gap-3 text-sm"><input type="checkbox" className="mt-1" checked={eligibility} onChange={e => setEligibility(e.target.checked)} />I checked coverage, account requirements and redemption restrictions for these products. Catalog inclusion alone does not prove eligibility.</label></>}
+        <button disabled={busy || !program.prizes.length || (needsCatalog && (!selected.length || !eligibility))} className={button} onClick={() => void run(async () => {
           if (!/^\d{1,2}(\.\d{1,2})?$/.test(budget)) throw new Error("Enter a budget between $0.01 and $20.");
-          const d = await request<{ id: string; token: string }>("/api/campaigns", token, { title, country, budgetCents: Math.round(Number(budget) * 100), productIds: selected });
+          const d = await request<{ id: string; token: string }>("/api/campaigns", token, { title, country, budgetCents: Math.round(Number(budget) * 100), productIds: needsCatalog ? selected : [], program });
           setInvite(`${location.origin}/claim/${d.id}#${d.token}`); setData(await request<Listing>("/api/campaigns", token));
         })}>Create one-use invitation</button>
-        <p className="text-xs text-muted">Expires in 24 hours. The first successful claimant reserves it. A quiz is not proof of unique humanity.</p>
+        <p className="text-xs text-muted">Expires in 24 hours. One participant per invitation. Requirements cannot be edited after creation. Quizzes and public evidence are not proof of unique humanity.</p>
       </section>
       {invite && <section className={panel}><h2 className="text-lg font-semibold">Share with your player</h2>
         <p className="text-sm text-muted">The player scans this with their phone camera or opens the link. Whoever claims first reserves the reward, so show it only to the intended player.</p>
@@ -71,8 +76,9 @@ export function CampaignDashboard() {
       {presenting === "invite" && invite && <QRPresenter value={invite} label="Player invitation QR code" title="Scan to claim your reward" hint="Point your phone camera at this code. Keep the page that opens: your reward is sealed to that browser." onClose={() => setPresenting("")} />}
       <section className="flex flex-col gap-4"><h2 className="text-xl font-semibold">Campaigns</h2>{!data?.campaigns.length && <p className="text-muted">No campaigns yet. Create an invitation above.</p>}{data?.campaigns.map(c => <article key={c.id} className={panel}>
         <h3 className="font-semibold">{c.title}</h3><Steps label={`Progress for ${c.title}`} steps={TRACK} current={progress(c.status).done} failed={progress(c.status).failed} /><p className="text-sm">{c.claimed}/1 claimed · {c.delivered} delivered · ${(c.reservedCents / 100).toFixed(2)} reserved · ${((c.deliveredCents ?? 0) / 100).toFixed(2)} delivered value</p><p className="text-sm text-muted">Status: {c.status}</p>
+        {c.program && <ProgramAdmin campaignId={c.id} token={token} />}
         {c.choice && <><p className="text-sm">{c.choice.productName} · {c.choice.packageValue} · ${(c.choice.priceCents / 100).toFixed(2)}</p><p className="text-sm text-muted">{c.choice.reason}</p></>}
-        {(c.status === "proposed" || c.status === "awaiting_payment") && <button className={button} disabled={busy} onClick={() => void run(async () => { const d = await request<{ payment: Payment }>(`/api/campaigns/${c.id}/approve`, token, {}); setPayment(d.payment); setPayCampaign(c.id); setData(await request<Listing>("/api/campaigns", token)); })}>{c.status === "proposed" ? "Approve exact reward & prepare payment" : "Show payment request"}</button>}
+        {(c.status === "proposed" || c.status === "awaiting_payment" || c.status === "expired" && !!c.choice) && <button className={button} disabled={busy} onClick={() => void run(async () => { const d = await request<{ payment: Payment }>(`/api/campaigns/${c.id}/approve`, token, {}); setPayment(d.payment); setPayCampaign(c.id); setData(await request<Listing>("/api/campaigns", token)); })}>{c.status === "expired" ? "Prepare a new payment request" : c.status === "proposed" ? "Approve exact reward & prepare payment" : "Show payment request"}</button>}
         {payment && payCampaign === c.id && c.status === "awaiting_payment" && <div className="flex flex-col gap-3"><p className="text-sm">Payment request expires {new Date(payment.expiresAt).toLocaleTimeString()}. Confirm once in your wallet.</p><NoirPayButton key={payment.id} to={payment.to} amountZec={payment.amountZec} memo={payment.memo} simulatedDetection={payment.simulated} /><p className="text-sm text-muted">Or scan with a testnet Zcash wallet on your phone:</p><QR value={payment.zip321} label="Sponsor payment QR code" /><div className="flex flex-wrap gap-x-5"><button className="min-h-11 text-sm underline" onClick={() => setPresenting("payment")}>Show payment QR full screen</button><a className="inline-flex min-h-11 items-center break-all text-sm underline" href={payment.zip321}>Open payment in wallet</a></div>{presenting === "payment" && <QRPresenter value={payment.zip321} label="Sponsor payment QR code" title="Scan with your Zcash wallet" hint={`${payment.amountZec} TAZ to a shielded testnet address. The memo identifies this order; keep it unchanged.`} onClose={() => setPresenting("")} />}{payment.simulated && <p className="text-accent">SIMULATED payment detection. Not real purchase evidence.</p>}</div>}
         {["failed", "failed_uncertain", "expired", "selection_failed"].includes(c.status) && <p className="text-sm text-muted">Contact the player or operator. Uncertain purchases must be reconciled before spending again.</p>}
       </article>)}</section>

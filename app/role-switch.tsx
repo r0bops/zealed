@@ -11,7 +11,7 @@ const ROLES = [
 export function RoleSwitch({ active }: { active?: Role }) {
   return <nav aria-label="Choose your side" className="grid grid-cols-2 gap-1 rounded-xl border border-line bg-surface p-1">
     {ROLES.map(r => <Link key={r.role} href={r.href} aria-current={active === r.role ? "page" : undefined}
-      className={`flex min-h-11 items-center justify-center rounded-lg px-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-accent ${active === r.role ? "bg-foreground text-background" : "text-muted hover:text-foreground"}`}>{r.label}</Link>)}
+      className={`flex min-h-11 items-center justify-center rounded-lg px-3 text-center text-sm font-medium focus-visible:outline-2 focus-visible:outline-accent ${active === r.role ? "bg-accent text-background" : "text-muted hover:text-foreground"}`}>{r.label}</Link>)}
   </nav>;
 }
 

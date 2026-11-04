@@ -14,7 +14,7 @@ type State =
   | { kind: "sent"; txid: string }
   | { kind: "error"; message: string };
 
-export function NoirPayButton({ to, amountZec, memo, simulatedDetection }: { to: string; amountZec: string; memo: string; simulatedDetection: boolean }) {
+export function NoirPayButton({ to, amountZec, memo, simulatedDetection, onSent }: { to: string; amountZec: string; memo: string; simulatedDetection: boolean; onSent?: (txid: string) => void }) {
   const [installed, setInstalled] = useState<boolean | null>(null);
   const [state, setState] = useState<State>({ kind: "idle" });
 
@@ -44,6 +44,7 @@ export function NoirPayButton({ to, amountZec, memo, simulatedDetection }: { to:
       setState({ kind: "sending" });
       const txid = await wallet.zcash.sendTransaction({ to, amount: amountZec, memo, fundingSource: "shielded" });
       setState({ kind: "sent", txid });
+      onSent?.(txid);
     } catch (e) {
       const err = e as { code?: number; message?: string };
       const cancelled = err.code === 4001 || /reject|denied|cancel/i.test(err.message ?? "");

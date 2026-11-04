@@ -4,6 +4,9 @@ import { db } from "./db/client";
 import { getOrder, reserveOrder } from "./orders";
 import type { Order } from "./db/schema";
 
+import { programInput } from "./program-schema";
+import { storeProgram, assertProgramPurchase, publicProgram } from "./program";
+
 export const mission = {
   question: "When should Zealed release a reward?",
   options: ["When a wallet broadcasts a transaction", "After the exact shielded payment is confirmed", "When someone posts a transaction screenshot"],
@@ -12,8 +15,9 @@ export const campaignInput = z.object({
   title: z.string().trim().min(3).max(80),
   budgetCents: z.number().int().min(1).max(2000),
   country: z.string().regex(/^[A-Z]{2}$/),
-  productIds: z.array(z.string().regex(/^[a-zA-Z0-9_-]{1,120}$/)).min(1).max(5),
-});
+  productIds: z.array(z.string().regex(/^[a-zA-Z0-9_-]{1,120}$/)).max(5),
+  program: programInput.optional(),
+}).refine(c => c.program ? !c.program.prizes.some(p => p.kind === "giftcard" || p.kind === "esim") || c.productIds.length > 0 : c.productIds.length > 0);
 export type CampaignInput = z.infer<typeof campaignInput>;
 export type Choice = { productId: string; productName: string; kind: "giftcard" | "esim"; packageValue: string; priceCents: number; reason: string };
 export type Campaign = { id: string; title: string; budget_cents: number; country: string; product_ids: string; invite_hash: string; expires_at: number; attempts: number; created_at: number };
@@ -50,9 +54,12 @@ export function claimForCampaign(id: string) {
 export function createCampaign(input: CampaignInput) {
   const id = crypto.randomUUID();
   const token = randomBytes(32).toString("base64url");
+  return db().$client.transaction(() => {
   db().$client.prepare("INSERT INTO campaigns (id,title,budget_cents,country,product_ids,invite_hash,expires_at,attempts,created_at) VALUES (?,?,?,?,?,?,?,0,?)")
     .run(id, input.title, input.budgetCents, input.country, JSON.stringify([...new Set(input.productIds)]), digest(token), Date.now() + 24 * 60 * 60_000, Date.now());
+  if (input.program) storeProgram(id, input.program);
   return { id, token };
+  }).immediate();
 }
 // Reserve the sole claim before any model request. A retry must present both the same key and secret.
 export type ClaimOptions = { failure?: string; attendance?: { eventId: string; nullifier: string } };
@@ -85,6 +92,7 @@ export function acquireClaim(id: string, inviteToken: string, answer: number, bu
 export function beginSelection(id: string, token: string) {
   return db().$client.transaction(() => {
     const c = claim(id, token);
+    assertProgramPurchase(c);
     if (c.state === "proposed" || c.state === "ordered") return false;
     if (campaign(c.campaign_id).expires_at <= Date.now()) throw new CampaignError(410, "Campaign expired.");
     if (c.attempts >= 3) throw new CampaignError(429, "Selection attempt limit reached. Contact the organizer.");
@@ -120,6 +128,7 @@ export function reserveSponsoredOrder(campaignId: string, row: typeof import("./
     if (c.expires_at <= Date.now()) throw new CampaignError(410, "Campaign expired.");
     const chosen = JSON.parse(player.choice) as Choice;
     checkChoice(c, chosen);
+    assertProgramPurchase(player, chosen.kind);
     const reapproval = player.state === "ordered" && expiredUnpaid(previous);
     if ((player.state !== "proposed" && !reapproval) || row.buyerPubKey !== player.buyer_key || row.productId !== chosen.productId || row.packageValue !== chosen.packageValue || row.priceUsdCents !== chosen.priceCents || row.type !== chosen.kind) {
       throw new CampaignError(409, "Reward or recipient changed. Reload before approving.");
@@ -139,6 +148,7 @@ export function sponsorSummary(c: Campaign) {
   const p = claimForCampaign(c.id);
   const o: Order | undefined = p?.order_id ? getOrder(p.order_id) : undefined;
   return { id: c.id, title: c.title, budgetCents: c.budget_cents, country: c.country, expiresAt: c.expires_at,
+    program: publicProgram(c.id),
     claimed: p ? 1 : 0, delivered: o?.status === "delivered" ? 1 : 0,
     reservedCents: o && ["awaiting_payment", "payment_seen", "paid", "fulfilling", "failed_uncertain"].includes(o.status) ? o.priceUsdCents : 0,
     deliveredCents: o?.status === "delivered" ? o.priceUsdCents : 0, status: o?.status ?? p?.state ?? "available",

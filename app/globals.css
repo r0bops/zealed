@@ -1,29 +1,16 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f6f5f1;
-  --surface: #ffffff;
-  --foreground: #16181a;
-  --muted: #6b6f73;
-  --line: #e4e2dc;
-  --accent: #c98a00; /* zcash gold, darkened for contrast on light */
-  --accent-soft: #fbf1d6;
-  --sealed: #127a5a;
-  --danger: #b42318;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0d0f10;
-    --surface: #15181a;
-    --foreground: #ecebe6;
-    --muted: #9a9ea2;
-    --line: #262a2d;
-    --accent: #f4b728;
-    --accent-soft: #2a2312;
-    --sealed: #3ccf9a;
-    --danger: #ff6b5e;
-  }
+  color-scheme: dark;
+  --background: #0a0a0a;
+  --surface: #111111;
+  --foreground: #f5f5f5;
+  --muted: #a3a3a3;
+  --line: #262626;
+  --accent: #f4b728;
+  --accent-soft: #211a0b;
+  --sealed: #6fbf8e;
+  --danger: #ff6b5e;
 }
 
 @theme inline {
@@ -46,7 +33,16 @@ body {
   font-family: var(--font-geist-sans), system-ui, sans-serif;
 }
 
-/* Landing presentation is scoped so the checkout and organizer workspace keep their layout. */
+.workspace-shell { min-height: 100vh; line-height: 1.55; }
+.workspace-shell :where(h1, h2, h3) { letter-spacing: -0.035em; overflow-wrap: anywhere; }
+.workspace-shell :where(p, a, label, li) { overflow-wrap: anywhere; }
+.workspace-shell :where(input, textarea, select) { min-width: 0; max-width: 100%; accent-color: var(--accent); }
+.workspace-shell :where(input, textarea, select):not([type="checkbox"]):not([type="radio"]) { font-size: 1rem; }
+.workspace-shell :where(button, a, input, select, textarea):focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.workspace-shell button:not(:disabled) { cursor: pointer; }
+.workspace-shell button:disabled { cursor: not-allowed; }
+
+/* Legacy presentation helpers share the site palette. */
 .landing-shell {
   --ticket: #f2c45b;
   --ticket-ink: #28200e;

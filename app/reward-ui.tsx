@@ -3,17 +3,22 @@ import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
 import QRCode from "qrcode";
 import { RoleSwitch, type Role } from "./role-switch";
-export const field = "min-h-11 w-full rounded-lg border border-line bg-background px-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-accent";
-export const button = "min-h-11 rounded-lg bg-foreground px-4 py-2 text-sm font-medium text-background disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2";
+export const field = "min-h-11 min-w-0 w-full rounded-lg border border-line bg-background px-3 py-2 text-base focus-visible:outline-2 focus-visible:outline-accent";
+export const button = "min-h-11 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-background hover:brightness-110 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2";
 export const buttonSecondary = "min-h-11 rounded-lg border border-line px-4 py-2 text-sm font-medium hover:bg-background disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2";
-export const panel = "flex flex-col gap-4 rounded-xl border border-line bg-surface p-5";
+export const panel = "flex min-w-0 flex-col gap-4 rounded-xl border border-line bg-surface p-4 sm:p-6";
 export function RewardLayout({ title, role, children }: { title: string; role?: Role; children: ReactNode }) {
-  return <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-8 sm:px-6">
-    <nav className="flex items-center justify-between"><Link className="py-2 text-lg font-semibold" href="/">Zealed</Link><Link className="py-2 text-sm underline" href="/chat?view=orders">My orders</Link></nav>
+  return <div className="workspace-shell">
+    <a href="#workspace" className="sr-only z-50 rounded bg-accent p-3 text-background focus:not-sr-only focus:fixed focus:left-4 focus:top-4">Skip to content</a>
+    <nav aria-label="Main navigation" className="border-b border-line bg-background"><div className="mx-auto flex min-h-16 max-w-5xl items-center justify-between gap-4 px-4 sm:px-8"><Link className="inline-flex min-h-11 items-center" href="/">
+      {/* eslint-disable-next-line @next/next/no-img-element -- local SVG brand asset */}
+      <img src="/logo.svg" width={112} height={24} alt="Zealed home" />
+    </Link><Link className="inline-flex min-h-11 items-center text-sm text-muted hover:text-foreground" href="/orders">My rewards ↗</Link></div></nav>
+    <main id="workspace" className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-4 py-8 sm:px-8 sm:py-12">
     <RoleSwitch active={role} />
-    <div className="flex flex-col gap-2">{role && <p className="text-xs font-medium tracking-widest text-muted uppercase">{role === "fund" ? "Sponsor side" : "Player side"}</p>}<h1 className="text-3xl font-semibold tracking-tight">{title}</h1></div>{children}
-    <p className="text-xs text-muted">Shielded testnet payments authorise purchases funded separately by event credits. Bitrefill and our fulfillment service briefly handle redemption details before encryption. Issuer eligibility still applies.</p>
-  </main>;
+    <header className="flex flex-col gap-3 border-b border-line pb-6"><p className="font-mono text-xs tracking-widest text-accent uppercase">{role === "fund" ? "Organizer workspace" : role === "claim" ? "Participant workspace" : "Your private rewards"}</p><h1 className="text-3xl font-bold tracking-tight sm:text-4xl">{title}</h1></header>{children}
+    <footer className="mt-4 border-t border-line pt-6 text-xs text-muted">Testnet TAZ has no monetary value. Bitrefill purchases are funded separately; Bitrefill and our fulfillment service handle redemption details before sealing. Custom instructions are encrypted in the organizer’s browser.</footer>
+  </main></div>;
 }
 export function QR({ value, label, size = 220 }: { value: string; label: string; size?: number }) {
   const [src, setSrc] = useState("");
