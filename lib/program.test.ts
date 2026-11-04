@@ -162,3 +162,49 @@ it("blocks tasks and prize reservation after expiry but permits receipt of an al
   expect(() => submitTask(other.p, other.tasks[0].id, 1)).toThrow("expired");
   expect(() => reservePrize(other.p, other.prizes[0].id)).toThrow("expired");
 });
+
+const eventProgram: ProgramInput = {
+  tasks: [
+    { kind: "code", title: "Visit the sponsor booth", instructions: "Ask the team at the booth for today's code.", code: "Shielded-Booth 42" },
+    { kind: "social", title: "Follow us on X", instructions: "Follow, then submit your X profile link.", platform: "x", target: "https://x.com/zealed" },
+    { kind: "social", title: "Join the Discord server", instructions: "Join, then submit your Discord profile link.", platform: "discord", target: "https://discord.gg/zealed" },
+  ],
+  prizes: [{ kind: "custom", title: "Event merchandise", description: "Collect at the event." }],
+};
+async function eventSetup() {
+  const c = createCampaign({ title: "Event missions", country: "IN", budgetCents: 500, productIds: [], program: eventProgram });
+  const key = await generateKeyPair(), secret = token();
+  return { c, p: acquireClaim(c.id, c.token, 1, key.publicKey, secret), secret, ...publicProgram(c.id)! };
+}
+
+it("checks venue codes instantly, ignoring case, spaces and dashes, and never exposes the code", async () => {
+  const s = await eventSetup(), code = s.tasks[0];
+  expect(code.kind).toBe("code"); expect(code.instructions).toContain("booth");
+  const stored = db().$client.prepare("SELECT config FROM campaign_programs WHERE campaign_id=?").get(s.c.id) as { config: string };
+  expect(stored.config.toLowerCase()).not.toContain("booth 42"); expect(stored.config.toLowerCase()).not.toContain("booth42");
+  expect(JSON.stringify(programStatus(s.p))).not.toMatch(/booth.?42/i);
+  submitTask(s.p, code.id, undefined, undefined, "wrong-code");
+  expect(programStatus(s.p)?.results[0]).toMatchObject({ status: "rejected", attempts: 1 });
+  const res = await playerPost(req(s.secret, { action: "task", taskId: code.id, code: "  shielded booth-42 " }), ctx(s.p.id));
+  expect(res.status).toBe(200);
+  expect(programStatus(s.p)?.results.find(r => r.task_id === code.id)?.status).toBe("approved");
+  expect(() => reviewTask(s.c.id, code.id, true)).toThrow("cannot be manually reviewed");
+  expect(() => submitTask(s.p, code.id)).not.toThrow(); // already approved: a no-op
+});
+
+it("requires social evidence on the chosen platform and keeps the organizer's link public", async () => {
+  const s = await eventSetup(), [, x, discord] = s.tasks;
+  expect(x).toMatchObject({ platform: "x", target: "https://x.com/zealed" });
+  expect(() => submitTask(s.p, x.id, undefined, "https://example.org/me")).toThrow("Submit a link on X");
+  submitTask(s.p, x.id, undefined, "https://twitter.com/player/status/1");
+  submitTask(s.p, discord.id, undefined, "https://example.org/screenshot.png");
+  expect(programStatus(s.p)?.results.filter(r => r.status === "pending")).toHaveLength(2);
+  const valid = { title: "Event", country: "IN", budgetCents: 500, productIds: [], program: eventProgram };
+  expect(campaignInput.safeParse(valid).success).toBe(true);
+  const offPlatform = { ...valid, program: { ...eventProgram, tasks: [{ ...eventProgram.tasks[1], target: "https://evil.example/x.com" }] } };
+  expect(campaignInput.safeParse(offPlatform).success).toBe(false);
+  const shortCode = { ...valid, program: { ...eventProgram, tasks: [{ ...eventProgram.tasks[0], code: "a-b" }] } };
+  expect(campaignInput.safeParse(shortCode).success).toBe(false);
+  const noLink = { ...valid, program: { ...eventProgram, tasks: [{ ...eventProgram.tasks[1], target: "" }] } };
+  expect(campaignInput.safeParse(noLink).success).toBe(true);
+});

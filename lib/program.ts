@@ -3,15 +3,19 @@ import { z } from "zod";
 import { db } from "./db/client";
 import { campaign, claimForCampaign, CampaignError, type Claim } from "./campaigns";
 import { serverSecret } from "./server-secret";
-import { programInput, type ProgramInput, type PublicProgram, type TaskResult, type Redemption, type ProgramStatus } from "./program-schema";
+import { programInput, normalizeCode, onPlatform, SOCIAL_PLATFORMS, type ProgramInput, type PublicProgram, type PublicTask, type TaskResult, type Redemption, type ProgramStatus } from "./program-schema";
 
 type Stored = PublicProgram & { answers: Record<string, string> };
 const answerHash = (id: string, answer: number) => createHmac("sha256", serverSecret("quiz")).update(`${id}:${answer}`).digest("hex");
+// Check-in codes are kept only as a keyed hash, like quiz answers, so the stored program never holds the code.
+const codeHash = (id: string, code: string) => createHmac("sha256", serverSecret("quiz")).update(`${id}:code:${normalizeCode(code)}`).digest("hex");
 export function storeProgram(id: string, input: ProgramInput) {
   const parsed = programInput.parse(input), answers: Record<string, string> = {};
-  const tasks = parsed.tasks.map(t => {
+  const tasks = parsed.tasks.map((t): PublicTask => {
     const taskId = crypto.randomUUID();
     if (t.kind === "quiz") { answers[taskId] = answerHash(taskId, t.answer); return { id: taskId, kind: t.kind, title: t.title, options: t.options }; }
+    if (t.kind === "code") { answers[taskId] = codeHash(taskId, t.code); return { id: taskId, kind: t.kind, title: t.title, instructions: t.instructions }; }
+    if (t.kind === "social") return { id: taskId, kind: t.kind, title: t.title, instructions: t.instructions, platform: t.platform ?? "other", ...(t.target ? { target: t.target } : {}) };
     return { ...t, id: taskId };
   });
   db().$client.prepare("INSERT INTO campaign_programs(campaign_id,config) VALUES (?,?)").run(id, JSON.stringify({ tasks, answers, prizes: parsed.prizes.map(p => ({ ...p, id: crypto.randomUUID() })) }));
@@ -41,7 +45,7 @@ export function assertProgramPurchase(c: Claim, kind?: string) {
   assertProgramEligible(c);
   if (!p.redemption || !["giftcard", "esim"].includes(p.redemption.kind) || kind && p.redemption.kind !== kind) throw new CampaignError(403, "Select this reward type before preparing a purchase.");
 }
-export function submitTask(c: Claim, taskId: string, answer?: number, evidence?: string) {
+export function submitTask(c: Claim, taskId: string, answer?: number, evidence?: string, code?: string) {
   return db().$client.transaction(() => {
     live(c);
     const p = stored(c.campaign_id), task = p?.tasks.find(t => t.id === taskId);
@@ -56,9 +60,14 @@ export function submitTask(c: Claim, taskId: string, answer?: number, evidence?:
     if (task.kind === "quiz") {
       if (!Number.isInteger(answer) || answer! < 0 || answer! >= task.options!.length) throw new CampaignError(400, "Choose an answer.");
       status = answerHash(taskId, answer!) === p.answers[taskId] ? "approved" : "rejected";
+    } else if (task.kind === "code") {
+      if (typeof code !== "string" || !normalizeCode(code) || code.length > 80) throw new CampaignError(400, "Enter the code.");
+      status = codeHash(taskId, code) === p.answers[taskId] ? "approved" : "rejected";
     } else {
       const url = z.url().max(1000).safeParse(evidence);
       if (!url.success || !["https:", "http:"].includes(new URL(url.data).protocol) || new URL(url.data).username || new URL(url.data).password) throw new CampaignError(400, "Supply a public evidence URL without credentials.");
+      // Discord has no public membership page, so any profile or screenshot link is accepted there.
+      if (task.kind === "social" && task.platform !== "discord" && !onPlatform(task.platform, url.data)) throw new CampaignError(400, `Submit a link on ${SOCIAL_PLATFORMS[task.platform ?? "other"].label} (${SOCIAL_PLATFORMS[task.platform ?? "other"].hosts.join(" or ")}).`);
       proof = url.data;
     }
     db().$client.prepare(`INSERT INTO mission_results(claim_id,task_id,status,evidence,attempts) VALUES (?,?,?,?,1)
@@ -70,7 +79,7 @@ export function reviewTask(campaignId: string, taskId: string, approved: boolean
   return db().$client.transaction(() => {
     live(c);
     const task = publicProgram(campaignId)?.tasks.find(t => t.id === taskId);
-    if (!task || task.kind === "quiz") throw new CampaignError(400, "This task cannot be manually reviewed.");
+    if (!task || task.kind === "quiz" || task.kind === "code") throw new CampaignError(400, "This task cannot be manually reviewed.");
     if (programStatus(c)?.redemption) throw new CampaignError(409, "Reward already reserved.");
     const changed = db().$client.prepare("UPDATE mission_results SET status=? WHERE claim_id=? AND task_id=? AND status='pending'").run(approved ? "approved" : "rejected", c.id, taskId);
     if (!changed.changes) throw new CampaignError(409, "No pending submission to review.");
