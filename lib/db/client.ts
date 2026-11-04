@@ -22,9 +22,16 @@ export function openDb(path = process.env.DATABASE_PATH ?? "./data/zealed.db"): 
   return drizzle(sqlite, { schema }) as DB;
 }
 
+let bootstrapped: DB | undefined;
+
 /** Process-wide singleton (survives Next.js dev hot reloads). */
 export function db(): DB {
   if (!g.__zealedDb) g.__zealedDb = openDb();
+  // Apply newly added idempotent tables when a dev reload reuses the open connection.
+  if (bootstrapped !== g.__zealedDb) {
+    g.__zealedDb.$client.exec(schema.BOOTSTRAP_SQL);
+    bootstrapped = g.__zealedDb;
+  }
   return g.__zealedDb;
 }
 
