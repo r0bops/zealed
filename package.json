@@ -21,6 +21,7 @@
     "@ai-sdk/anthropic": "^4.0.96",
     "@ai-sdk/react": "^4.0.166",
     "@noir-wallet/sdk": "0.1.9",
+    "@reclaimprotocol/js-sdk": "5.8.3",
     "ai": "^7.0.162",
     "better-sqlite3": "^13.0.3",
     "drizzle-orm": "^0.45.4",

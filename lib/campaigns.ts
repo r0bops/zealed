@@ -55,7 +55,8 @@ export function createCampaign(input: CampaignInput) {
   return { id, token };
 }
 // Reserve the sole claim before any model request. A retry must present both the same key and secret.
-export function acquireClaim(id: string, inviteToken: string, answer: number, buyerKey: string, secret: string) {
+export type ClaimOptions = { failure?: string; attendance?: { eventId: string; nullifier: string } };
+export function acquireClaim(id: string, inviteToken: string, answer: number, buyerKey: string, secret: string, options: ClaimOptions = {}) {
   const result = db().$client.transaction(() => {
     const c = invitation(id, inviteToken);
     const previous = claimForCampaign(id);
@@ -70,9 +71,15 @@ export function acquireClaim(id: string, inviteToken: string, answer: number, bu
     const claimId = crypto.randomUUID();
     db().$client.prepare("INSERT INTO reward_claims (id,campaign_id,secret_hash,buyer_key,state,attempts,updated_at) VALUES (?,?,?,?,'selection_failed',0,?)")
       .run(claimId, id, digest(secret), buyerKey, Date.now());
+    if (options.attendance) {
+      // Same transaction as the claim: a repeat attendee rolls back the claim and the attempt together.
+      const added = db().$client.prepare("INSERT OR IGNORE INTO attendance_nullifiers (event_id,nullifier,claim_id,created_at) VALUES (?,?,?,?)")
+        .run(options.attendance.eventId, options.attendance.nullifier, claimId, Date.now());
+      if (added.changes === 0) throw new CampaignError(409, "This attendee has already claimed a reward.");
+    }
     return claim(claimId, secret);
   }).immediate();
-  if (!result) throw new CampaignError(400, "Not quite. Review the payment explanation and try again.");
+  if (!result) throw new CampaignError(400, options.failure ?? "Not quite. Review the payment explanation and try again.");
   return result;
 }
 export function beginSelection(id: string, token: string) {

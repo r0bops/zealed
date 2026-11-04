@@ -88,6 +88,11 @@ CREATE TABLE IF NOT EXISTS reward_claims (
   secret_hash TEXT NOT NULL, buyer_key TEXT NOT NULL, state TEXT NOT NULL,
   choice TEXT, order_id TEXT UNIQUE, attempts INTEGER NOT NULL DEFAULT 0, updated_at INTEGER NOT NULL
 );
+-- One reward per approved attendee per event. Holds only a keyed one-way code, never a Luma account id.
+CREATE TABLE IF NOT EXISTS attendance_nullifiers (
+  event_id TEXT NOT NULL, nullifier TEXT NOT NULL, claim_id TEXT NOT NULL REFERENCES reward_claims(id),
+  created_at INTEGER NOT NULL, UNIQUE(event_id, nullifier)
+);
 
 CREATE TABLE IF NOT EXISTS spend_reservations (
   order_id TEXT PRIMARY KEY,
