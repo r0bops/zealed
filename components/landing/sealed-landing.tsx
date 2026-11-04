@@ -116,11 +116,11 @@ export function SealedLanding() {
             </div>
             <div className={`${styles.grid3} ${styles.stack}`}>
               <article className={`${styles.card} ${styles.soonCard}`}>
-                <h3>Proof of attendance via Reclaim<span className={styles.soon}>Coming soon</span></h3>
+                <h3>Proof of attendance via Reclaim<span className={styles.soon}>Built, not live</span></h3>
                 <p>zkTLS proof that you attended a Luma event.</p>
               </article>
               <article className={`${styles.card} ${styles.soonCard}`}>
-                <h3>FROST 2-of-3 treasury<span className={styles.soon}>Coming soon</span></h3>
+                <h3>FROST 2-of-3 treasury<span className={styles.soon}>Built, not live</span></h3>
                 <p>Sponsor funds held under threshold signatures.</p>
               </article>
             </div>
@@ -276,8 +276,8 @@ function BuiltWith({ duplicate = false }: { duplicate?: boolean }) {
       <span>zkool</span>
       <span>libsodium</span>
       <span>Claude Haiku</span>
-      <span>FROST 2-of-3<span className={styles.soon}>Coming soon</span></span>
-      <span>Reclaim Protocol<span className={styles.soon}>Coming soon</span></span>
+      <span>FROST 2-of-3<span className={styles.soon}>Built, not live</span></span>
+      <span>Reclaim Protocol<span className={styles.soon}>Built, not live</span></span>
     </div>
   );
 }
