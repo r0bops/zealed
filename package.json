@@ -13,7 +13,9 @@
     "db:reset": "tsx --env-file=.env.local scripts/reset-dev-db.ts",
     "e2e": "tsx --env-file=.env.local scripts/e2e-simulated.ts",
     "zkool:setup": "tsx --env-file=.env.local scripts/zkool-setup.ts",
-    "zkool:pay": "tsx --env-file=.env.local scripts/zkool-pay.ts"
+    "zkool:pay": "tsx --env-file=.env.local scripts/zkool-pay.ts",
+    "frost:setup": "tsx --env-file=.env.local scripts/frost-setup.ts",
+    "frost:pay": "tsx --env-file=.env.local scripts/frost-pay.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.96",
