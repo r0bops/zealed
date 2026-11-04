@@ -14,7 +14,7 @@ const randomSecret = () => btoa(String.fromCharCode(...crypto.getRandomValues(ne
 /** Says which mission the player faces, so a quiz fallback is never mistaken for a verified proof. */
 export function MissionModeNote({ mode }: { mode?: "reclaim" | "quiz" }) {
   return <p className="text-xs text-muted" data-mission-mode={mode ?? "quiz"}>
-    {mode === "reclaim" ? "Account verification uses a Reclaim zkTLS proof." : "This invitation uses a quiz. It does not verify identity or attendance."}
+    {mode === "reclaim" ? "This step checks one fact from an account you already use." : "This invitation uses a quiz. It does not verify identity or attendance."}
   </p>;
 }
 
@@ -74,27 +74,27 @@ export function ReclaimVerify({ campaignId, storageKey, session, invitation, onS
   }
 
   return <section className={panel} aria-busy={phase === "starting" || phase === "submitting"}>
-    <h2 className="text-lg font-semibold">{invitation.missionAttendance ? "Attendee check" : "A short verified mission"}</h2>
-    <p className="font-medium">{invitation.missionLabel ?? "Prove a fact about one of your web accounts"}</p>
+    <h2 className="text-lg font-semibold">{invitation.missionAttendance ? "Attendee check" : "Confirm this step"}</h2>
+    <p className="font-medium">{invitation.missionLabel ?? "Confirm one fact from an account you already use"}</p>
     <p className="text-sm text-muted">{invitation.missionAttendance
-      ? "Zealed checks the event, approval status and attendee identifier in your proof in memory. We store only a keyed one-way code to prevent repeat claims; the proof and account details are not stored."
-      : "Reclaim creates a zkTLS proof from your own logged-in session. Zealed checks the proof once to reserve your reward and does not store the account details inside it."}</p>
+      ? "You sign in to Luma as usual, and we confirm your registration for this event is approved, then reserve your reward. Your account details aren’t stored; we keep only a code that stops the same ticket claiming twice."
+      : "You sign in to that account as usual, and we confirm the one fact this step needs, then reserve your reward. Your account details aren’t stored."}</p>
     {error && <p role="alert" className="text-sm text-danger">{error}</p>}
     {phase === "idle" || phase === "starting"
       ? <button className={button} disabled={blocked || phase === "starting"} onClick={() => void start()}>
-          {phase === "starting" ? "Preparing verification…" : invitation.claimed && !session?.secret ? "Invitation already claimed" : "Start Reclaim verification"}
+          {phase === "starting" ? "Preparing this step…" : invitation.claimed && !session?.secret ? "Invitation already claimed" : error ? "Try again" : "Start verification"}
         </button>
       : phase === "submitting"
-        ? <p role="status">Proof received. Checking it and reserving your reward…</p>
+        ? <p role="status">Checking that step and reserving your reward…</p>
         : <>
-            <button className={button} onClick={() => void open()}>Open Reclaim verification</button>
-            <p role="status" className="text-sm text-muted">Waiting for your proof. Keep this page open; it continues automatically.</p>
+            <button className={button} onClick={() => void open()}>Continue verification</button>
+            <p role="status" className="text-sm text-muted">Keep this page open. It finishes on its own.</p>
             {link && <details className="text-sm"><summary className="min-h-11 cursor-pointer py-2">Verify on your phone or open the link yourself</summary>
               <div className="flex flex-col items-start gap-3 pt-2"><QR value={qr || link} label="QR code for the Reclaim verification" size={220} />
                 <a className={buttonSecondary + " inline-flex items-center"} href={link} target="_blank" rel="noopener noreferrer">Open verification link</a></div>
             </details>}
             <button className="min-h-11 self-start text-sm underline" onClick={() => void start()}>Start over</button>
           </>}
-    <p className="text-xs text-muted">Five attempts per invitation. A proof that fails verification uses one.</p>
+    <p className="text-xs text-muted">You can try five times.</p>
   </section>;
 }

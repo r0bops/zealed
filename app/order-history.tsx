@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { get, keys } from "idb-keyval";
 import { useEffect, useState } from "react";
-import { PaymentPanel } from "./order-details";
+import { PaymentPanel, statusText } from "./order-details";
 import { rememberedOrderIds, orderAccessToken } from "@/lib/keystore";
 import { button, buttonSecondary, field, Notice, request, StatusTag } from "./reward-ui";
 import { Icon } from "./ui-icon";
@@ -33,8 +33,8 @@ export function OrderHistory({ active }: { active: boolean }) {
       const orders = await Promise.all(orderIds.slice(-20).map(async id => {
         let title = `Order ${id.slice(0, 8)}`, status = "Saved order";
         try {
-          const data = await request<{ order: { productName: string; status: string } }>(`/api/orders/${id}`, await orderAccessToken(id) ?? "");
-          title = data.order.productName; status = data.order.status.replaceAll("_", " ");
+          const data = await request<{ order: { productName: string; status: string }; sponsored?: boolean }>(`/api/orders/${id}`, await orderAccessToken(id) ?? "");
+          title = data.order.productName; status = statusText(data.order.status, data.sponsored);
         } catch { /* the original page can explain authorization or connection errors */ }
         return { id, title, status, detail: `Bitrefill order · ${id.slice(0, 8)}`, kind: "order" as const };
       }));

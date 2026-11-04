@@ -38,14 +38,26 @@ interface OrderResponse {
   sponsored?: boolean;
 }
 
+// Plain words for each stage. Transaction and invoice ids live under "Details".
 const STEPS = [
-  { key: "awaiting_payment", label: "Waiting for payment" },
-  { key: "payment_seen", label: "Seen in mempool" },
-  { key: "paid", label: "Confirmed" },
-  { key: "fulfilling", label: "Buying from Bitrefill" },
+  { key: "awaiting_payment", label: "Waiting for approval" },
+  { key: "payment_seen", label: "Approval on its way" },
+  { key: "paid", label: "Approved privately with Zcash" },
+  { key: "fulfilling", label: "Getting your reward" },
   { key: "delivered", label: "Delivered" },
 ];
+const STATUS_TEXT: Record<string, string> = {
+  payment_seen: "Approval on its way", paid: "Approved", fulfilling: "Getting your reward", delivered: "Delivered",
+  expired: "Expired", failed: "Needs attention", failed_uncertain: "Needs attention",
+};
+export const statusText = (status: string, sponsored?: boolean) => status === "awaiting_payment" ? (sponsored ? "Waiting for your sponsor" : "Waiting for your payment") : STATUS_TEXT[status] ?? status.replaceAll("_", " ");
 const zec = (zat: number) => (zat / 1e8).toFixed(8).replace(/0+$/, "").replace(/\.$/, "");
+/** Two short lines on how to use a delivered reward. */
+function howToUse(content: SealedContent): [string, string] {
+  if (content.kind === "giftcard") return ["Open the store’s website or app.", "Paste this code where it asks for a gift card."];
+  if (content.kind === "esim") return ["On your phone, open Settings and add an eSIM.", "Scan the QR code, or paste the activation code."];
+  return ["Your reward is ready in this browser.", "Come back to this page if you need it again."];
+}
 
 // ---------------------------------------------------------------- payment + delivery panel
 
@@ -113,16 +125,18 @@ export function PaymentPanel({ orderId, compact = false }: { orderId: string; co
         )}
       </div>
 
-      <StatusTag tone={status === "delivered" ? "success" : status === "failed" || status === "expired" ? "error" : "attention"}>{status === "awaiting_payment" && data.sponsored ? "Waiting for your sponsor" : status?.replaceAll("_", " ")}</StatusTag>
-      <ol className="flex flex-col gap-3 border-y border-line py-5 text-sm" aria-label="Order progress">
+      <div className="flex flex-wrap items-center gap-2">
+        <StatusTag tone={status === "delivered" ? "success" : status === "failed" || status === "failed_uncertain" || status === "expired" ? "error" : "attention"}>{statusText(o.status, data.sponsored)}</StatusTag>
+        {data.simulatedPayment && <StatusTag tone="attention">Simulated approval</StatusTag>}
+      </div>
+      <ol className="flex flex-col gap-3 border-y border-line py-5 text-sm" aria-label="Reward progress">
         {STEPS.map((s, i) => (
           <li key={s.key} className={`flex items-center gap-2 ${i <= stepIndex ? "text-foreground" : "text-muted"}`}>
             <span
               aria-hidden
               className={`size-2 rounded-full ${i < stepIndex || status === "delivered" ? "bg-sealed" : i === stepIndex ? "animate-pulse bg-accent" : "bg-line"}`}
             />
-            {s.label}
-            {s.key === "payment_seen" && o.txid && i <= stepIndex && <span className="font-mono text-xs text-muted">{o.txid.slice(0, 12)}…</span>}
+            {s.key === "awaiting_payment" && !data.sponsored ? "Waiting for your payment" : s.label}
           </li>
         ))}
       </ol>
@@ -170,10 +184,17 @@ export function PaymentPanel({ orderId, compact = false }: { orderId: string; co
       {status === "delivered" && <Delivered order={o} />}
       {status === "delivered" && o.type !== "topup" && o.sealedPayload && <details className="border-t border-line pt-3"><summary className="min-h-11 cursor-pointer py-2 text-sm text-muted">Pass this reward to a friend</summary><GiftButton sealedPayload={o.sealedPayload} buyerPublicKey={o.buyerPubKey} label={o.productName} /></details>}
 
-      <p className="text-xs text-muted">
-        Your key {fp ? <span className="font-mono">{fp}</span> : "…"} · the server only ever stores ciphertext for this order.
-        {data.simulatedPayment && <span className="ml-1 font-medium text-accent">Payment: SIMULATED</span>}
-      </p>
+      <details className="border-t border-line pt-3 text-sm">
+        <summary className="min-h-11 cursor-pointer py-2 text-muted">Details</summary>
+        <div className="flex flex-col gap-2 break-all pb-2 text-xs text-muted">
+          <p>Reward reference <span className="font-mono">{o.id}</span></p>
+          {o.txid && <a className="workspace-inline-link" href={`https://testnet.zcashexplorer.app/transactions/${o.txid}`} target="_blank" rel="noreferrer">Zcash transaction {o.txid}</a>}
+          {o.minedHeight != null && <p>Recorded at block {o.minedHeight}</p>}
+          {o.bitrefillOrderId && <p>Bitrefill order {o.bitrefillOrderId}</p>}
+          <p>Your browser key <span className="font-mono">{fp ?? "…"}</span>. The server stores this reward only in encrypted form.</p>
+          {data.simulatedPayment && <p>Approval detection on this server is simulated.</p>}
+        </div>
+      </details>
     </div>
   );
 }
@@ -182,6 +203,7 @@ function Delivered({ order }: { order: PublicOrder }) {
   const [content, setContent] = useState<SealedContent | null>(null);
   const [missingKey, setMissingKey] = useState(false);
   const [revealed, setRevealed] = useState(false);
+  const [copied, setCopied] = useState(false);
   const [esimQr, setEsimQr] = useState<string | null>(null);
   const backupRef = useRef<HTMLInputElement>(null);
 
@@ -239,45 +261,32 @@ function Delivered({ order }: { order: PublicOrder }) {
       </form>
     );
 
-  if (!content) return <p className="text-sm text-muted">Decrypting in your browser…</p>;
+  if (!content) return <p className="text-sm text-muted" role="status">Opening your reward in this browser…</p>;
+
+  const code = content.kind === "giftcard" ? content.code : content.kind === "esim" ? content.lpa : undefined;
+  const pin = content.kind === "giftcard" ? content.pin : undefined;
+  const link = content.kind === "giftcard" ? content.link : undefined;
+  const [line1, line2] = howToUse(content);
+  const dots = (v: string) => "•".repeat(Math.min(v.length, 16));
+  // Copies without putting the code on screen; the code stays masked until "Show code" (demos are recorded).
+  async function copyCode() {
+    if (!code) return;
+    try { await navigator.clipboard.writeText(code); setCopied(true); window.setTimeout(() => setCopied(false), 2000); } catch { setRevealed(true); }
+  }
 
   return (
-    <div className="workspace-secret flex flex-col gap-4 text-sm">
-      <p className="flex items-center gap-2 font-medium text-sealed"><Icon name="shield" width={16} />Decrypted in your browser</p>
-      {content.kind === "giftcard" && (
-        <>
-          {content.code && <Secret label="Code" value={content.code} revealed={revealed} />}
-          {content.pin && <Secret label="PIN" value={content.pin} revealed={revealed} />}
-          {content.link && revealed && (
-            <a href={content.link} target="_blank" rel="noreferrer" className="underline">
-              Redemption link
-            </a>
-          )}
-        </>
-      )}
-      {content.kind === "esim" && (
-        <div className="flex flex-col gap-2">
-          {/* eslint-disable-next-line @next/next/no-img-element -- local data: URL */}
-          {revealed && esimQr ? <img src={esimQr} alt="eSIM activation QR code" className="size-40 rounded-lg bg-white p-1" /> : <p className="text-muted">eSIM QR code hidden</p>}
-          <Secret label="Activation" value={content.lpa} revealed={revealed} />
-        </div>
-      )}
+    <div className="workspace-secret flex flex-col gap-4">
+      <p className="flex items-center gap-2 font-medium text-sealed"><Icon name="shield" width={16} />Your reward is ready · opened in this browser</p>
+      {/* eslint-disable-next-line @next/next/no-img-element -- local data: URL */}
+      {content.kind === "esim" && revealed && esimQr && <img src={esimQr} alt="eSIM activation QR code" className="size-44 self-center rounded-lg bg-white p-1" />}
+      {code && <p className="break-all text-center font-mono text-2xl tracking-wide text-foreground sm:text-3xl" aria-live="polite">{revealed ? code : dots(code)}</p>}
+      {pin && <p className="text-center text-base text-muted">PIN <span className="font-mono text-foreground">{revealed ? pin : dots(pin)}</span></p>}
+      <div className="space-y-1"><p className="text-base">{line1}</p><p className="text-sm text-muted">{line2}</p></div>
       {"instructions" in content && content.instructions && <p className="text-xs text-muted">{content.instructions}</p>}
-      <button type="button" onClick={() => setRevealed((r) => !r)} className={buttonSecondary}>
-        {revealed ? "Hide reward details" : "Reveal reward details"}
-      </button>
+      {code && <button type="button" className={button} onClick={() => void copyCode()}>{copied ? "Copied" : content.kind === "esim" ? "Copy activation code" : "Copy code"}</button>}
+      {(code || pin || link) && <button type="button" onClick={() => setRevealed((r) => !r)} className={buttonSecondary}>{revealed ? "Hide" : code ? "Show code" : "Show redemption details"}</button>}
+      {pin && revealed && <CopyButton value={pin} label="Copy PIN" />}
+      {link && revealed && <a href={link} target="_blank" rel="noreferrer" className={code ? "workspace-inline-link" : button}>Open the redemption page<Icon name="arrow" width={16} /></a>}
     </div>
-  );
-}
-
-function Secret({ label, value, revealed }: { label: string; value: string; revealed: boolean }) {
-  return (
-    <p className="flex flex-wrap items-center gap-2">
-      <span className="text-muted">{label}</span>
-      <span className="font-mono break-all">{revealed ? value : "•".repeat(Math.min(value.length, 16))}</span>
-      {revealed && (
-        <CopyButton value={value} label={`Copy ${label.toLowerCase()}`} />
-      )}
-    </p>
   );
 }
