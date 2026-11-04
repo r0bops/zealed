@@ -19,7 +19,8 @@ DRAFT. Before submitting:
 | **Live URL** | TODO: https://… |
 | **Demo video** | TODO: https://… (2–3 minutes) |
 | **Testnet txid** | `1bb9548ea9ee04da491071e86f7287391aa52f3260c51ce6219324615768defd`: a shielded order payment, mined at height 4581712. [zexplorer](https://zexplorer.app/testnet/tx/1bb9548ea9ee04da491071e86f7287391aa52f3260c51ce6219324615768defd) · [zcashexplorer](https://testnet.zcashexplorer.app/transactions/1bb9548ea9ee04da491071e86f7287391aa52f3260c51ce6219324615768defd) <!-- TODO: on 4 Nov, zexplorer's testnet index stopped at 4505881, so it shows "not found". Check the zcashexplorer link in a browser before submitting. --> |
-| **Real purchase invoice ID** | TODO: Bitrefill invoice ID |
+| **Real purchase invoice ID** | TODO: needs event credits and `BITREFILL_PURCHASES=live` |
+| **Bitrefill test-product invoices** | `98d4f316-c3fa-482a-9137-91723064b4e5` (gift card) · `3f51bca9-39bc-4579-bd51-6df1fc584d4b` (eSIM). Real API purchases of Bitrefill's free test products; the codes aren't redeemable |
 | **Team** | TODO: Name (@handle) |
 
 **Which parts serve which track**
@@ -106,14 +107,16 @@ pnpm zkool:pay <orderId>
 | Shielded payment from a wallet (CLI payer through `pnpm zkool:pay`) | ✅ real, NU7 testnet | txid `1bb9548e…8defd`: 0.12966881 TAZ for order `80cceeb9`, mined at 4581712 about 60 s after sending |
 | Shielded payment from the buyer's browser with Noir Wallet | 🟡 built; not yet run on testnet | TODO: txid |
 | Watch-only detection and confirmation via zkool_graphql | ✅ real | The watch-only account (UFVK, birth 4581688) matched the memo tag, cart hash, exact amount and recipient, then marked the order paid after 1 confirmation. TODO: video timestamp |
-| Bitrefill purchase from balance, polled until delivered | 🟡 that run used SIMULATED fulfillment; no real purchase yet | TODO: invoice ID |
-| Result sealed to the buyer, decrypted locally, phone wiped | ✅ in the real-payment run (with simulated fulfillment) and the tests | order `80cceeb9`, `lib/safety.test.ts` |
+| Bitrefill purchase triggered by the confirmed payment, polled until delivered | ✅ real API purchases of Bitrefill **test products** (`BITREFILL_PURCHASES=test`) | **Gift card:** order `6c279e24`, txid `7bc881c3cce15e0f5b24256f0c0de4a517c752760187f07faf210fcd07be8334` (height 4581762), invoice `98d4f316…`. **eSIM** through `POST /esims`: order `49efc554`, txid `a352f788e27c073937b31ff40de810bcd27a434a2af5f067bc9df605062158ed` (height 4581766), invoice `3f51bca9…` |
+| Paid Bitrefill purchase of a real product | 🟡 not yet. It needs event credits and `BITREFILL_PURCHASES=live` | TODO: invoice ID, video timestamp |
+| Result sealed to the buyer, decrypted locally, phone wiped | ✅ in the real-payment runs: a gift card code, and a real eSIM LPA string with its QR code rendered in the browser | orders `6c279e24` and `49efc554`, `lib/safety.test.ts` |
 
 **Known limitations:**
 - A `fake` Zcash backend exists for local development only. It's labelled SIMULATED in the UI, it's refused in production, and it's never used in the demo.
 - With zkool, the "seen in mempool" state doesn't appear. The transaction shows up only once it's mined, so orders go straight from awaiting payment to paid.
 - Bitrefill delivery is detected by polling, not webhooks.
 - ZEC is priced at a fixed demo rate (`ZEC_USD_RATE`), because TAZ has no market price. BTC/USD is fetched live, with a configured fallback.
+- The Bitrefill purchases so far were test products, whose codes can't be redeemed. A paid purchase of a real product is still to come.
 - The resale flow (seller-sealed codes) isn't built yet.
 - The app and the watcher share one process and one SQLite file.
 
@@ -169,7 +172,7 @@ pnpm zkool:pay <orderId>
   - **Bitrefill's own caps:** 5 top-ups and 15 gift cards a day per account.
   - **Hard ceiling:** the Bitrefill balance, which holds only event credits.
   - **Other limits:** one purchase per order, through an atomic claim. An uncertain outcome is reconciled, never retried blindly. Quotes and proposals expire after 15 minutes. In live mode, fulfillment re-prices the product before it buys.
-- **Purchase proof:** TODO, the invoice ID plus the video timestamp of the agent-initiated purchase.
+- **Purchase proof:** TODO, the invoice ID of a paid purchase plus the video timestamp. So far, the full flow has made real API purchases of Bitrefill's test products: invoices `98d4f316-c3fa-482a-9137-91723064b4e5` (gift card) and `3f51bca9-39bc-4579-bd51-6df1fc584d4b` (eSIM). Test products cost nothing; the balance was 0 before and after.
 - **What's new here:**
   - **A new guarantee:** the agent, the database and the logs can't leak the code, because they never hold it in readable form.
   - **A new trigger:** a confirmed shielded payment, bound to the exact cart by its memo.
@@ -178,7 +181,9 @@ pnpm zkool:pay <orderId>
 **Handling the failure cases:**
 - **Out of stock:** refused at quote time.
 - **Expired quote:** a new quote is needed.
-- **429 or timeout during a purchase:** treated as an unknown outcome (`failed_uncertain`) and reconciled, not retried.
+- **429 or timeout during a purchase:** treated as an unknown outcome (`failed_uncertain`), never retried.
+- **Uncertain outcomes:** once a minute, the watcher runs `reconcileOrder()`. It only reads the Bitrefill invoice and order, never buys again, and settles the order as delivered or failed. It has already recovered a test order to delivered.
+- **Finished invoices:** a delivered invoice can report `all_delivered` rather than `complete`, so polling stops on the order's own final state.
 - **Failed or refunded order:** reported as failed.
 
 ## 7. How it's built
