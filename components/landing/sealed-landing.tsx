@@ -1,5 +1,6 @@
 import Link from "next/link";
 import "./landing.css";
+import { ZealedName } from "./zealed-name";
 
 // Turbopack rewrites *.module.css into global CSS, so class names are applied directly.
 const styles = new Proxy({} as Record<string, string>, {
@@ -132,7 +133,7 @@ export function SealedLanding() {
                 <span className={styles.eyebrow}>illustrative replay</span>
               </div>
               <pre>
-                <span className={styles.muted}>$</span> zealed claim --invite mission-42{"\n"}
+                <span className={styles.muted}>$</span> <ZealedName lowercase /> claim --invite mission-42{"\n"}
                 <span className={styles.muted}>you     </span> key generated in browser · <span className={styles.ok}>bound</span>{"\n"}
                 <span className={styles.muted}>copier  </span> resends the same invite link…{"\n"}
                 <span className={styles.bad}>REJECTED</span> claim bound to another key · already used{"\n"}
@@ -154,7 +155,7 @@ export function SealedLanding() {
                 <div className={styles.art}>claims: n · status · ZEC spent</div>
               </article>
               <article className={styles.card}>
-                <div className={styles.eyebrow}>Zealed server</div>
+                <div className={styles.eyebrow}><ZealedName /> server</div>
                 <h3>Metadata + ciphertext</h3>
                 <p>Holds a viewing key only; stores the sealed blob it can&apos;t open.</p>
                 <div className={styles.art}><span className={styles.ok}>sealed</span> blob · viewing key</div>

@@ -140,6 +140,11 @@
   color: var(--gold);
 }
 
+/* Leading Z of the product name. Same Zcash gold as the landing accent. */
+.zl-root .z-accent {
+  color: var(--gold);
+}
+
 .zl-hero {
   position: relative;
   overflow: hidden;
