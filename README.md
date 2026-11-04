@@ -1,11 +1,3 @@
-<!--
-DRAFT. Before submitting:
-- Replace every "TODO" (grep -n TODO README.md).
-- Delete all HTML comments, this one included.
-- Keep the pitch identical to the one on the Stadium form.
-- Flip each 🟡 row in "What actually works" to ✅ only once you have evidence for it.
--->
-
 <div align="center">
 
 # Zealed
@@ -797,8 +789,6 @@ None of these is published as a package yet.
 ## AI usage
 
 At runtime, Zealed uses Claude Haiku 5.5 for one job: choosing a package from the campaign's allowed list. It receives the country, structured preferences and the eligible packages. It has no tools, can't approve or buy anything, and never sees a name, email, key or code. Every decision that matters (eligibility, the budget, approval, the purchase) is made in code.
-
-<!-- TODO (human): decide whether to add a sentence on AI coding assistants used to build Zealed. -->
 
 ## Compliance by design
 
