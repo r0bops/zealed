@@ -3,7 +3,7 @@
 import Link from "next/link";
 import QRCode from "qrcode";
 import { useEffect, useRef, useState } from "react";
-import { createOrderKey, importKey, loadKey, rememberOrder } from "@/lib/keystore";
+import { createOrderKey, importKey, loadKey, rememberOrder, orderAccessToken } from "@/lib/keystore";
 import { decodeContent, type SealedContent } from "@/lib/payload";
 import { fingerprint, open, seal } from "@/lib/sodium";
 import { NoirPayButton } from "./noir-pay";
@@ -45,6 +45,7 @@ interface OrderResponse {
   zip321: string;
   memo: string;
   simulatedPayment: boolean;
+  sponsored?: boolean;
 }
 
 const STEPS = [
@@ -174,11 +175,11 @@ export function PaymentPanel({ orderId, compact = false }: { orderId: string; co
     let timer: ReturnType<typeof setTimeout>;
     const load = async () => {
       try {
-        const res = await fetch(`/api/orders/${orderId}`, { cache: "no-store" });
+        const res = await fetch(`/api/orders/${orderId}`, { cache: "no-store", headers: { authorization: `Bearer ${await orderAccessToken(orderId) ?? ""}` } });
         const d = (await res.json()) as OrderResponse & { error?: string };
         if (!res.ok) throw new Error(d.error ?? "order not found");
         if (!stop) setData(d);
-        if (!stop && !["delivered", "failed", "failed_uncertain", "expired"].includes(d.order.status)) timer = setTimeout(load, 2500);
+        if (!stop && !["delivered", "failed", "expired"].includes(d.order.status)) timer = setTimeout(load, 2500);
       } catch (e) {
         if (!stop) setError((e as Error).message);
       }
@@ -243,7 +244,8 @@ export function PaymentPanel({ orderId, compact = false }: { orderId: string; co
         </p>
       )}
 
-      {status === "awaiting_payment" && (
+      {status === "awaiting_payment" && data.sponsored && <p className="text-sm text-muted">Your sponsor is authorising this reward. You do not need to pay.</p>}
+      {status === "awaiting_payment" && !data.sponsored && (
         <div className="flex flex-col gap-3">
           <NoirPayButton to={o.payAddr} amountZec={zec(o.amountZat)} memo={data.memo} simulatedDetection={data.simulatedPayment} />
           <p className="text-xs text-muted">Or pay from any testnet wallet:</p>

@@ -6,16 +6,16 @@ export const dynamic = "force-dynamic";
 
 const POINTS = [
   {
-    title: "Sealed for your device",
-    body: "Your browser encrypts phone numbers. A fulfillment service briefly handles Bitrefill codes and seals them to your browser’s key. Chat is not a secure place for secrets.",
+    title: "A mission, then a useful perk",
+    body: "Open a sponsor’s invitation and complete a short learning mission. The agent compares allowed rewards against your needs and the budget.",
   },
   {
     title: "Shielded ZEC authorises",
     body: "A shielded Zcash testnet payment authorises each purchase. Zealed then pays Bitrefill from its credit balance, within fixed caps.",
   },
   {
-    title: "Separate checkout for secrets",
-    body: "It searches, prices and proposes. A separate function fulfils, seals the result to your key and wipes phone numbers.",
+    title: "Delivery belongs to the player",
+    body: "A fulfillment service seals the reward to the player’s browser key. Sponsors see the proposed purchase and delivery status, not redemption details.",
   },
 ];
 
@@ -34,11 +34,10 @@ export default function Home() {
 
         <div className="flex flex-col gap-4">
           <h1 className="text-4xl font-semibold leading-[1.1] tracking-tight text-balance sm:text-5xl">
-            Gift cards, eSIMs and top-ups. Your codes stay sealed.
+            Complete a mission. Receive a private reward.
           </h1>
           <p className="max-w-prose text-lg text-muted text-pretty">
-            Ask the agent for what you need. It finds it in the Bitrefill catalog for India, checks the spending caps and
-            hands you a checkout only you can open.
+            Sponsors set the budget and eligible perks. Players complete a mission, the agent selects a reward, and a shielded payment authorises delivery to the player’s browser.
           </p>
         </div>
 
@@ -71,7 +70,7 @@ export default function Home() {
       </section>
 
       <nav aria-label="Shopping" className="flex flex-wrap items-center gap-3">
-        <Link href="/chat" className="inline-flex min-h-11 items-center rounded-xl bg-foreground px-5 py-3 font-medium text-background focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent">Start shopping</Link>
+        <Link href="/campaigns" className="inline-flex min-h-11 items-center rounded-xl bg-foreground px-5 py-3 font-medium text-background focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent">Create a reward campaign</Link>
         <Link href="/chat?view=orders" className="inline-flex min-h-11 items-center rounded-xl border border-line px-5 py-3 font-medium focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent">My orders</Link>
       </nav>
     </main>

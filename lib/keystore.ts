@@ -25,8 +25,9 @@ export async function importKey(backup: string): Promise<KeyPair> {
   return kp;
 }
 
-export async function rememberOrder(orderId: string, publicKey: string) {
+export async function rememberOrder(orderId: string, publicKey: string, accessToken?: string) {
   await set(`zealed:order:${orderId}`, publicKey);
+  if (accessToken) await set(`zealed:order-access:${orderId}`, accessToken);
 }
 
 /** Order references only: no key material or transcript is read into the list. */
@@ -34,4 +35,8 @@ export async function rememberedOrderIds(): Promise<string[]> {
   return (await keys()).filter((key): key is string => typeof key === "string" && key.startsWith("zealed:order:"))
     .map((key) => key.slice("zealed:order:".length))
     .filter((id) => /^[A-Za-z0-9_-]{1,128}$/.test(id));
+}
+
+export async function orderAccessToken(orderId: string): Promise<string | undefined> {
+  return get<string>(`zealed:order-access:${orderId}`);
 }
