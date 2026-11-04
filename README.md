@@ -22,6 +22,7 @@ Organizers build a checklist of event missions and fund the prizes. An AI agent 
 [![Claude](https://img.shields.io/badge/agent-Claude%20Haiku%205.5-d97757)](https://www.anthropic.com)
 [![Tests](https://img.shields.io/badge/tests-153%20passing-brightgreen)](#testing)
 [![CI](https://github.com/r0bops/zealed/actions/workflows/ci.yml/badge.svg)](https://github.com/r0bops/zealed/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/License-MIT-green)](./LICENSE)
 
 [Live app](https://tryzealed.xyz) · [Try it](#try-the-live-site) · [Evidence](#testnet-transaction-evidence) · [What works](#what-actually-works) · [Privacy and trust](#privacy-and-trust) · [Bitrefill](#agentic-commerce-with-bitrefill) · [Security model](#security-model)
 
@@ -42,9 +43,9 @@ Free Society Hack 2026 · Mumbai · Tracks: Privacy (Zcash) + Agentic Commerce (
 | **Live URL** | https://tryzealed.xyz (also https://www.tryzealed.xyz). Bitrefill purchases run in **test mode**. Sponsors start with **Start funding**, with no token needed |
 | **Demo video** | TODO: https://… (2–3 minutes) |
 | **Testnet txid** | `1843616532cee751cbe556e902723d47b6675b6c92300b24070b8b6d1961f9ca`: a sponsor's shielded payment authorising a mission reward, mined at height 4581978. [Explorer](https://testnet.zcashexplorer.app/transactions/1843616532cee751cbe556e902723d47b6675b6c92300b24070b8b6d1961f9ca). More in [the evidence](#testnet-transaction-evidence) |
-| **Real purchase invoice ID** | TODO: needs event credits and `BITREFILL_PURCHASES=live` |
+| **Real purchase invoice ID** | None yet. Every purchase so far was one of Bitrefill's free test products (invoices below). A paid purchase needs event credits and `BITREFILL_PURCHASES=live` |
 | **Bitrefill test-product invoices** | `7d8e4569-daa5-4de9-9a35-518b7d42c47f` (mission reward, eSIM) · `2cc79a30-29c6-423a-9d7a-8844d63b671a` (mission reward, gift card) · `306668d4-01cd-4294-a08c-a6e94641eb11` (attendee-checked reward, gift card) · `98d4f316-c3fa-482a-9137-91723064b4e5` (checkout gift card) · `3f51bca9-39bc-4579-bd51-6df1fc584d4b` (checkout eSIM). These are real API purchases of Bitrefill's free test products, and their codes can't be redeemed |
-| **Team** | TODO: Name (@handle) |
+| **Team** | [@r0bops](https://github.com/r0bops) · [@Cbiux](https://github.com/Cbiux) |
 
 ## Table of contents
 
@@ -95,7 +96,7 @@ Free Society Hack 2026 · Mumbai · Tracks: Privacy (Zcash) + Agentic Commerce (
 Event organizers hand out perks for showing up, learning something or helping the community. Today that usually means copying redemption codes into spreadsheets or messages. Whoever handles those copies can spend the codes. The organizer also has to guess which perk each person can use, such as an eSIM for their destination or a gift card valid in their country.
 
 - **Problem hypothesis:** organizers need bounded reward distribution that doesn't copy codes around. Participants need perks they can actually redeem. This need hasn't been validated with an organizer yet.
-- **Evidence:** TODO. Use real evidence only: quotes from people you spoke to at the venue or in the mentors chat, a documented incident or issue thread, or a partner asking for it. Don't invent users, quotes or demand.
+- **Evidence:** none yet. We haven't validated this need with an organizer or with participants, and we don't claim any demand.
 
 ### The user
 
@@ -394,7 +395,11 @@ The first version of Zealed was a shopping chat with per-order checkout. It has 
 | Test gift card, order `6c279e24` (height 4581762) | [`7bc881c3…8334`](https://testnet.zcashexplorer.app/transactions/7bc881c3cce15e0f5b24256f0c0de4a517c752760187f07faf210fcd07be8334) | `98d4f316-c3fa-482a-9137-91723064b4e5` |
 | Test eSIM through `POST /esims`, order `49efc554` (height 4581766) | [`a352f788…58ed`](https://testnet.zcashexplorer.app/transactions/a352f788e27c073937b31ff40de810bcd27a434a2af5f067bc9df605062158ed) | `3f51bca9-39bc-4579-bd51-6df1fc584d4b` |
 
-**Viewing key (optional):** TODO: `uviewtest…` · birth height **4581688** (the demo receiving wallet). This key reveals that wallet's history but can't spend from it.
+**Viewing key:** the demo receiving wallet's unified full viewing key, birth height **4581688**. Import it into a testnet wallet as watch-only to see the amounts and memos of the payments above. It reveals that wallet's history but can't spend from it.
+
+```
+uviewtest15n2vh4nwp9c875gv3efk63nqacsevqjakae5wytk9g2kndxpgx5z4sx5yqtr8urcthkn4cj59n9raz7y0dlc5gl0m7ymxzaq79qaasm0fgyjhw2d7jv77sz4numgsvwz45rvusn98nvq52cjnpt8qzl5nug6hxkl74fzjfy45q6d53tvqucwqr3j0kk99s0l4axwpv7kqrmycvlt39eue2cyc2a8evgzsvh4pwtj35am7nkku9mjewwqr2p5dwvr708mfpdrmkfa8z0ka6943g9psu9ak26e3vnr7qx6sl0029mav0tf3hslaf86440y7kjh024ymc35cumv0zkscuj75pe5qsesjl5ryp83nst7p77g9kxrxrreppdfm0w77ju09svx7uwc0uzpl99l9hvsqrpra2ckkrfepdtmq9wulq0fpy29n6yd0wvs7fc7z9zpe07ypm2d5va25h7pu04dx85aj2lefgpdtd54x45mt42xugmhzyye
+```
 
 ---
 
@@ -402,12 +407,12 @@ The first version of Zealed was a shopping chat with per-order checkout. It has 
 
 | Step in the core flow | Status | Evidence |
 |---|---|---|
-| Mission rewards end to end: campaign, mission, claim, agent selection, sponsor approval, shielded payment, Bitrefill purchase, participant decryption | ✅ real on NU7 testnet, with Bitrefill **test products** | The eSIM and gift card runs in [the evidence](#testnet-transaction-evidence). Script: `scripts/e2e-rewards.ts` (`pnpm e2e:rewards`). TODO: video timestamp |
+| Mission rewards end to end: campaign, mission, claim, agent selection, sponsor approval, shielded payment, Bitrefill purchase, participant decryption | ✅ real on NU7 testnet, with Bitrefill **test products** | The eSIM and gift card runs in [the evidence](#testnet-transaction-evidence). Script: `scripts/e2e-rewards.ts` (`pnpm e2e:rewards`) |
 | Agent selects from allowed catalog packages within the campaign budget | ✅ real | The same runs |
 | Guardrails and authenticated sponsor approval | ✅ implemented and tested | `lib/guardrails.ts`, `lib/sponsor-order.ts`, `lib/safety.test.ts` |
 | ZIP-321 request with the order tag and cart hash in the memo | ✅ real | `lib/zip321.ts`, `lib/cart.ts` |
 | Shielded payment from a wallet (CLI payer through `pnpm zkool:pay`) | ✅ real | The txids above |
-| Watch-only detection and confirmation through zkool_graphql | ✅ real | The watch-only account (UFVK, birth 4581688) matched the memo tag, cart hash, exact amount and recipient, then marked the order paid after 1 confirmation. TODO: video timestamp |
+| Watch-only detection and confirmation through zkool_graphql | ✅ real | The watch-only account (UFVK, birth 4581688) matched the memo tag, cart hash, exact amount and recipient, then marked the order paid after 1 confirmation |
 | Bitrefill purchase triggered by the confirmed payment, polled until delivered | ✅ real API purchases of Bitrefill **test products** (`BITREFILL_PURCHASES=test`) | Five invoices, gift cards and eSIMs |
 | Result sealed to the participant's key and decrypted locally | ✅ real | Gift card codes and a real eSIM activation string, with its QR code rendered in the browser. `lib/keystore.ts`, `app/order-details.tsx` |
 | Attendee check against the organizer's imported Luma guest list | ✅ real, with a Bitrefill **test product** | `lib/attendees.ts`, `lib/attendee-hash.ts`, `app/claim/email-verify.tsx`, `scripts/attendees-import.ts`, `lib/attendees.test.ts`. Live on the public site |
@@ -420,9 +425,9 @@ The first version of Zealed was a shopping chat with per-order checkout. It has 
 | Rate limiting on public reward mutations | ✅ implemented and tested | `lib/rate-limit.ts`, `lib/rate-limit.test.ts` |
 | Public deployment | ✅ live at https://tryzealed.xyz, Bitrefill test mode | A read-only smoke test passed: pages load, unauthenticated campaign listing gets 401, unknown campaigns and orders get 404, and the rate limit answers 429 with `Retry-After`. `GET /api/health` reports the deployed revision, watcher ticks and zkool sync lag |
 | Direct Zcash prize | 🟡 built; no live payout recorded | Wallet-send UI, format-only address checks, a unique reported txid and separate participant acknowledgment. No destination, amount or confirmation checks |
-| Shielded payment from the browser with Noir Wallet | 🟡 built; not yet recorded on testnet | TODO: txid |
+| Shielded payment from the browser with Noir Wallet | 🟡 built; not yet recorded on testnet | No browser-wallet txid recorded yet. Organizer payouts with Noir save the returned txid automatically |
 | One-time sealed gift links | 🟡 built, tested, linked from delivered rewards and deployed; no live gift opened yet | `lib/gift-links.ts`, `lib/gift-envelope.ts`, `app/api/gifts/`, `app/gift/`, `lib/gift-links.test.ts`. Tests cover a single open, first-accept-only, wrong tokens and roles, sealing only to the accepted key, cancel, expiry and the creation rate limit. An end-to-end test checks that the plaintext never reaches the database |
-| Paid Bitrefill purchase of a real product | 🟡 not yet. It needs event credits and `BITREFILL_PURCHASES=live` | TODO: invoice ID, video timestamp |
+| Paid Bitrefill purchase of a real product | 🟡 not yet. It needs event credits and `BITREFILL_PURCHASES=live` | No paid invoice yet |
 
 <a id="testing"></a>**Testing.** 153 automated tests pass across 21 files (`pnpm test`). Coverage includes spending and payment boundaries, legacy attendance, all-task gating, organizer review, rejected submissions, immutable prize choice, encrypted custom delivery, payout recording, expiry, sponsor isolation, catalog search and one-time gift links. CI runs install, typecheck, lint and the tests on every push and pull request. TypeScript, lint and the production build pass. Landing, organizer, participant, invitation, history and order pages were checked at 320, 375, 768 and 1440 px without horizontal overflow. No external purchase or payout happened during these checks.
 
@@ -579,7 +584,7 @@ pnpm e2e:rewards
   - **Hard ceiling:** the Bitrefill balance, which holds only event credits.
   - **Other limits:** one purchase per order, through an atomic claim. An uncertain outcome is reconciled, never retried blindly. Payment requests expire after 15 minutes. In live mode, fulfillment re-prices the product before it buys, and a rise of more than 5% over the approved price, or any price above the cap, stops the purchase. Public reward endpoints are rate-limited per client.
   - **Above the caps:** nothing is bought. The guardrail blocks the order, and there's no in-app override. Only the operator can change the caps, in the server configuration, and switching purchases to live also turns off open sponsor access.
-- **Purchase proof:** TODO, the invoice ID of a paid purchase plus the video timestamp. So far, every run has made real API purchases of Bitrefill's test products (the five invoices [above](#testnet-transaction-evidence)). Test products cost nothing; the balance was 0 before and after.
+- **Purchase proof:** there's no paid purchase yet. So far, every run has made real API purchases of Bitrefill's test products (the five invoices [above](#testnet-transaction-evidence)). Test products cost nothing; the balance was 0 before and after.
 - **What's new here:**
   - **A new trigger:** completed event missions, then a confirmed shielded payment bound to the exact cart by its memo.
   - **A new guarantee:** the agent, the database and the logs can't leak the code, because they never hold it in readable form.
@@ -787,7 +792,7 @@ The repository's first commit was made at 08:37 WET (14:07 IST) on Wed 4 Nov 202
 - one-time sealed gift links (`lib/gift-links.ts`, `lib/gift-envelope.ts`)
 - the event metadata allowlist (`lib/event-metadata.ts`)
 
-TODO: link any of these if you publish them as a package.
+None of these is published as a package yet.
 
 ## AI usage
 
@@ -816,22 +821,23 @@ At runtime, Zealed uses Claude Haiku 5.5 for one job: choosing a package from th
   - Pooled sponsor funding and refunds, designed separately: custody, currency conversion, fees, who may refund, and how pending claims settle. Testnet TAZ can't be spent as Bitrefill credit.
   - Network privacy for the watcher (Nym), shorter metadata retention, and issuers encrypting straight to the participant's key.
 - **Not planned for now:** pooled deposits, automatic refunds, broad global inventory and dispute handling.
-- **Who benefits:** TODO: name a real organizer, partner or project.
-- **Already started:** TODO: links to an upstream issue or PR, a partner thread, or a post in [What are you building on Zcash?](https://forum.zcashcommunity.com/t/what-are-you-building-on-zcash/55172). No organizer demand or partnership is claimed yet.
+- **Who benefits:** no organizer, partner or project has signed up yet. Finding the first one is the point of the pilot above.
+- **Already started:** nothing outside this repository yet: no upstream issue, partner thread or forum post. The first post will go in [What are you building on Zcash?](https://forum.zcashcommunity.com/t/what-are-you-building-on-zcash/55172).
 
 ## Team
 
 | Name | Role | Built |
 |---|---|---|
-| TODO | TODO | TODO |
+| [@r0bops](https://github.com/r0bops) | Product and code | The app, payments, fulfillment, docs and deployment |
+| [@Cbiux](https://github.com/Cbiux) | Landing design | The sealed-chest landing page and its motion (PRs #2 and #3) |
 
 ## Feedback
 
-See [FEEDBACK.md](FEEDBACK.md): what broke, confused or slowed us down with Zcash tooling and Bitrefill. TODO: written by the human.
+What broke, confused or slowed us down with Zcash tooling, Bitrefill and Reclaim is logged in [FEEDBACK_NOTES.md](FEEDBACK_NOTES.md). TODO: the team's own FEEDBACK.md.
 
 ## License
 
-TODO: choose a license (for example MIT) and add a LICENSE file.
+[MIT](LICENSE).
 
 ## Resources used
 
