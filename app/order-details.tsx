@@ -6,6 +6,9 @@ import { useEffect, useRef, useState } from "react";
 import { importKey, loadKey, orderAccessToken } from "@/lib/keystore";
 import { decodeContent, type SealedContent } from "@/lib/payload";
 import { fingerprint, open } from "@/lib/sodium";
+import { button, buttonSecondary, field, Notice, StatusTag, CopyButton } from "./reward-ui";
+import { Icon } from "./ui-icon";
+import { GiftButton } from "./gift/gift-button";
 import { NoirPayButton } from "./noir-pay";
 
 interface PublicOrder {
@@ -51,6 +54,7 @@ export function PaymentPanel({ orderId, compact = false }: { orderId: string; co
   const [qr, setQr] = useState<string | null>(null);
   const [fp, setFp] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [reload, setReload] = useState(0);
   const [simBusy, setSimBusy] = useState(false);
   const status = data?.order.status;
 
@@ -62,7 +66,7 @@ export function PaymentPanel({ orderId, compact = false }: { orderId: string; co
         const res = await fetch(`/api/orders/${orderId}`, { cache: "no-store", headers: { authorization: `Bearer ${await orderAccessToken(orderId) ?? ""}` } });
         const d = (await res.json()) as OrderResponse & { error?: string };
         if (!res.ok) throw new Error(d.error ?? "order not found");
-        if (!stop) setData(d);
+        if (!stop) { setData(d); setError(null); }
         if (!stop && !["delivered", "failed", "expired"].includes(d.order.status)) timer = setTimeout(load, 2500);
       } catch (e) {
         if (!stop) setError((e as Error).message);
@@ -73,7 +77,7 @@ export function PaymentPanel({ orderId, compact = false }: { orderId: string; co
       stop = true;
       clearTimeout(timer);
     };
-  }, [orderId]);
+  }, [orderId, reload]);
 
   useEffect(() => {
     if (!data) return;
@@ -87,29 +91,30 @@ export function PaymentPanel({ orderId, compact = false }: { orderId: string; co
     setSimBusy(false);
   }
 
-  if (error) return <p className="text-sm text-danger">{error}</p>;
-  if (!data) return <p className="text-sm text-muted">Loading order…</p>;
+  if (error) return <Notice tone="error"><p>{error}</p><button type="button" className={buttonSecondary + " mt-3"} onClick={() => { setError(null); setReload(n => n + 1); }}>Retry order</button></Notice>;
+  if (!data) return <p className="workspace-note py-8" role="status">Opening your reward details…</p>;
   const o = data.order;
   const stepIndex = STEPS.findIndex((s) => s.key === status);
 
   return (
-    <div className="flex w-full max-w-md flex-col gap-3 rounded-xl border border-line bg-background p-4">
+    <div className={compact ? "workspace-stack" : "workspace-panel mx-auto w-full max-w-3xl"}>
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="font-semibold">{o.productName}</p>
+          <p className="text-xl font-semibold">{o.productName}</p>
           <p className="text-sm text-muted">
             {o.packageValue} · ${(o.priceUsdCents / 100).toFixed(2)}
           </p>
         </div>
-        {!compact && <Link href="/claim" className="text-sm text-muted underline">Claim a reward</Link>}
+        {!compact && <Link href="/claim" className="workspace-inline-link">Claim a reward</Link>}
         {compact && (
-          <a href={`/order/${o.id}`} target="_blank" className="text-xs text-muted underline">
+          <a href={`/order/${o.id}`} target="_blank" rel="noreferrer" className="workspace-inline-link">
             Order page
           </a>
         )}
       </div>
 
-      <ol className="flex flex-col gap-1 text-sm">
+      <StatusTag tone={status === "delivered" ? "success" : status === "failed" || status === "expired" ? "error" : "attention"}>{status === "awaiting_payment" && data.sponsored ? "Waiting for your sponsor" : status?.replaceAll("_", " ")}</StatusTag>
+      <ol className="flex flex-col gap-3 border-y border-line py-5 text-sm" aria-label="Order progress">
         {STEPS.map((s, i) => (
           <li key={s.key} className={`flex items-center gap-2 ${i <= stepIndex ? "text-foreground" : "text-muted"}`}>
             <span
@@ -124,7 +129,7 @@ export function PaymentPanel({ orderId, compact = false }: { orderId: string; co
 
       {(status === "failed" || status === "failed_uncertain" || status === "expired") && (
         <p role="alert" className="rounded-lg border border-danger/40 px-3 py-2 text-sm text-danger">
-          {status === "expired" ? "This payment request expired. Ask the agent for a new one." : o.failure ?? "Fulfilment failed."}
+          {status === "expired" ? "This payment request expired. Ask your organizer to prepare a new payment request." : o.failure ?? "Fulfilment failed."}
         </p>
       )}
 
@@ -133,7 +138,7 @@ export function PaymentPanel({ orderId, compact = false }: { orderId: string; co
         <div className="flex flex-col gap-3">
           <NoirPayButton to={o.payAddr} amountZec={zec(o.amountZat)} memo={data.memo} simulatedDetection={data.simulatedPayment} />
           <p className="text-xs text-muted">Or pay from any testnet wallet:</p>
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-4">
             {/* eslint-disable-next-line @next/next/no-img-element -- local data: URL */}
             {qr && <img src={qr} alt="Zcash payment QR code" className="size-32 shrink-0 rounded-lg bg-white p-1" />}
             <div className="flex min-w-0 flex-col gap-1 text-sm">
@@ -146,9 +151,7 @@ export function PaymentPanel({ orderId, compact = false }: { orderId: string; co
               <a href={data.zip321} className="text-sm underline">
                 Open in wallet
               </a>
-              <button type="button" onClick={() => navigator.clipboard.writeText(data.zip321)} className="w-fit text-xs text-muted underline">
-                Copy payment URI
-              </button>
+              <CopyButton value={data.zip321} label="Copy payment link" />
             </div>
           </div>
           {data.simulatedPayment && (
@@ -165,6 +168,7 @@ export function PaymentPanel({ orderId, compact = false }: { orderId: string; co
       )}
 
       {status === "delivered" && <Delivered order={o} />}
+      {status === "delivered" && o.type !== "topup" && o.sealedPayload && <details className="border-t border-line pt-3"><summary className="min-h-11 cursor-pointer py-2 text-sm text-muted">Pass this reward to a friend</summary><GiftButton sealedPayload={o.sealedPayload} buyerPublicKey={o.buyerPubKey} label={o.productName} /></details>}
 
       <p className="text-xs text-muted">
         Your key {fp ? <span className="font-mono">{fp}</span> : "…"} · the server only ever stores ciphertext for this order.
@@ -230,16 +234,16 @@ function Delivered({ order }: { order: PublicOrder }) {
         }}
       >
         <p>This browser doesn&apos;t hold the key for this order. Paste your key backup to open it.</p>
-        <input ref={backupRef} className="rounded-lg border border-line bg-background px-3 py-2 font-mono text-xs" placeholder="zealed-key-v1-…" />
-        <button className="w-fit rounded-lg bg-foreground px-3 py-1.5 text-background">Open</button>
+        <label className="flex flex-col gap-2">Private key backup<input ref={backupRef} type="password" autoComplete="off" className={field} placeholder="zealed-key-v1-…" /></label>
+        <button className={button}>Restore key & open reward</button>
       </form>
     );
 
   if (!content) return <p className="text-sm text-muted">Decrypting in your browser…</p>;
 
   return (
-    <div className="flex flex-col gap-2 rounded-lg border border-sealed/40 p-3 text-sm">
-      <p className="font-medium text-sealed">Decrypted in your browser</p>
+    <div className="workspace-secret flex flex-col gap-4 text-sm">
+      <p className="flex items-center gap-2 font-medium text-sealed"><Icon name="shield" width={16} />Decrypted in your browser</p>
       {content.kind === "giftcard" && (
         <>
           {content.code && <Secret label="Code" value={content.code} revealed={revealed} />}
@@ -259,8 +263,8 @@ function Delivered({ order }: { order: PublicOrder }) {
         </div>
       )}
       {"instructions" in content && content.instructions && <p className="text-xs text-muted">{content.instructions}</p>}
-      <button type="button" onClick={() => setRevealed((r) => !r)} className="w-fit rounded-lg border border-line px-3 py-1.5">
-        {revealed ? "Hide" : "Reveal"}
+      <button type="button" onClick={() => setRevealed((r) => !r)} className={buttonSecondary}>
+        {revealed ? "Hide reward details" : "Reveal reward details"}
       </button>
     </div>
   );
@@ -268,13 +272,11 @@ function Delivered({ order }: { order: PublicOrder }) {
 
 function Secret({ label, value, revealed }: { label: string; value: string; revealed: boolean }) {
   return (
-    <p className="flex items-center gap-2">
+    <p className="flex flex-wrap items-center gap-2">
       <span className="text-muted">{label}</span>
       <span className="font-mono break-all">{revealed ? value : "•".repeat(Math.min(value.length, 16))}</span>
       {revealed && (
-        <button type="button" onClick={() => navigator.clipboard.writeText(value)} className="text-xs text-muted underline">
-          copy
-        </button>
+        <CopyButton value={value} label={`Copy ${label.toLowerCase()}`} />
       )}
     </p>
   );

@@ -6,7 +6,7 @@ import { RewardLayout } from "../../reward-ui";
 export default async function OrderPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   return (
-    <RewardLayout title="Reward details">
+    <RewardLayout title="Your reward, sealed for you." description="Follow the delivery and open your reward on this device. Codes stay hidden until you choose to reveal them.">
       <PaymentPanel orderId={id} />
     </RewardLayout>
   );

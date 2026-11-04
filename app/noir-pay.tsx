@@ -1,6 +1,7 @@
 "use client";
 // "Pay with Noir Wallet": the buyer pays the exact shielded amount + memo from their own browser wallet.
 // The wallet sees our address, the amount and the memo (order tag + cart hash), never a code or phone number.
+import { button } from "./reward-ui";
 import { getNoirWallet } from "@noir-wallet/sdk";
 import { useEffect, useState } from "react";
 
@@ -68,7 +69,7 @@ export function NoirPayButton({ to, amountZec, memo, simulatedDetection, onSent 
     return (
       <p className="rounded-lg border border-sealed/40 px-3 py-2 text-sm text-sealed">
         Sent from Noir Wallet.{" "}
-        <a href={`https://zexplorer.app/testnet/tx/${state.txid}`} target="_blank" rel="noreferrer" className="font-mono underline">
+        <a href={`https://testnet.zcashexplorer.app/transactions/${state.txid}`} target="_blank" rel="noreferrer" className="font-mono underline">
           {state.txid.slice(0, 12)}…
         </a>{" "}
         Waiting for the network to confirm.
@@ -82,7 +83,7 @@ export function NoirPayButton({ to, amountZec, memo, simulatedDetection, onSent 
         type="button"
         onClick={pay}
         disabled={busy}
-        className="min-h-11 rounded-lg bg-accent px-3 py-2 text-sm font-medium text-background transition-opacity disabled:opacity-50"
+        className={button}
       >
         {state.kind === "connecting" ? "Connecting to Noir Wallet…" : state.kind === "sending" ? "Approve the payment in Noir Wallet…" : `Pay ${amountZec} TAZ with Noir Wallet`}
       </button>
