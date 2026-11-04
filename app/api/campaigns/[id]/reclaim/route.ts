@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { rateLimit } from "@/lib/rate-limit";
 import { bearer, CampaignError, claimForCampaign, invitation } from "@/lib/campaigns";
 import { isPublicKey } from "@/lib/sodium";
 import { campaignFailure, campaignResponse, readBody } from "@/lib/campaign-http";
@@ -6,6 +7,8 @@ import { createMissionRequest, missionLabel, MissionProofError, reclaimEnabled }
 // POST, not GET, so the player's public key stays out of URLs and access logs.
 const input = z.object({ publicKey: z.string().max(100) });
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
+  const limited = rateLimit(req, "reclaim-request", 10, 60_000);
+  if (limited) return limited;
   try {
     const { id } = await ctx.params;
     const c = invitation(id, bearer(req));
