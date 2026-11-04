@@ -1,5 +1,10 @@
 import Link from "next/link";
-import styles from "./landing.module.css";
+import "./landing.css";
+
+// Turbopack rewrites *.module.css into global CSS, so class names are applied directly.
+const styles = new Proxy({} as Record<string, string>, {
+  get: (_target, prop) => (typeof prop === "string" ? `zl-${prop}` : ""),
+});
 
 const MISSION_TX = "1843616532cee751cbe556e902723d47b6675b6c92300b24070b8b6d1961f9ca";
 const FIRST_TX = "1bb9548ea9ee04da491071e86f7287391aa52f3260c51ce6219324615768defd";
