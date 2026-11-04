@@ -42,7 +42,15 @@ export function CampaignDashboard() {
   const [openAccess, setOpenAccess] = useState<boolean | null>(null), [maxBudget, setMaxBudget] = useState(500);
   useEffect(() => {
     let saved = "";
-    try { saved = localStorage.getItem(SPONSOR_STORAGE) ?? ""; } catch { /* storage unavailable */ }
+    const moved = location.hash.match(/^#sponsor=(zs_[A-Za-z0-9_-]{43})$/);
+    if (moved) {
+      // A sponsor access link from another device: keep the key in this browser and drop it from the address bar.
+      saved = moved[1];
+      try { localStorage.setItem(SPONSOR_STORAGE, saved); } catch { /* storage unavailable: access lasts until reload */ }
+      history.replaceState(null, "", location.pathname);
+    } else {
+      try { saved = localStorage.getItem(SPONSOR_STORAGE) ?? ""; } catch { /* storage unavailable */ }
+    }
     fetch("/api/sponsors", { cache: "no-store" }).then(r => r.json()).then((d: { open: boolean; maxBudgetCents: number }) => {
       setOpenAccess(d.open); setMaxBudget(d.maxBudgetCents);
       if (d.open && saved) setToken(saved);
@@ -75,16 +83,16 @@ export function CampaignDashboard() {
           setToken(d.token);
         })}>{busy ? "Starting…" : openAccess === null ? "Loading…" : "Start funding"}</button>
       </>}
-      <details open={openAccess === false} className="text-sm">
+      {openAccess === false && <details open className="text-sm">
         <summary className="min-h-11 cursor-pointer py-2 text-muted">{openAccess === false ? "Organizer access token" : "I have an organizer token"}</summary>
         <form onSubmit={unlock} className="mt-2 flex flex-col gap-3">
           <input aria-label="Organizer access token" autoComplete="current-password" type="password" required minLength={32} value={login} onChange={e => setLogin(e.target.value)} className={field} />
           <p className="text-xs text-muted">Use the token provided by the Zealed operator. It stays in memory for this session.</p>
           <button disabled={busy} className={buttonSecondary}>{busy ? "Checking access…" : "Open organizer workspace"}</button>
         </form>
-      </details>
+      </details>}
     </section> : <>
-      <div className="flex items-center justify-between gap-3 text-sm"><p>{data?.simulatedCatalog ? "SIMULATED catalog" : "Live catalog"} · Purchases: <strong>{data?.purchaseMode}</strong>{data?.purchaseMode === "test" && " (not redeemable)"}</p>{data?.openSponsor ? <span className="text-xs text-muted">Sponsor key saved in this browser</span> : <button className="min-h-11 underline" onClick={() => { setToken(""); setData(null); setInvite(""); setPayment(null); }}>Lock workspace</button>}</div>
+      <div className="flex items-center justify-between gap-3 text-sm"><p>{data?.simulatedCatalog ? "SIMULATED catalog" : "Live catalog"} · Purchases: <strong>{data?.purchaseMode}</strong>{data?.purchaseMode === "test" && " (not redeemable)"}</p>{data?.openSponsor ? <button className="min-h-11 text-xs text-muted underline" title="Anyone with this link can manage your campaigns. Share it only with yourself." onClick={() => void run(() => navigator.clipboard.writeText(`${location.origin}/campaigns#sponsor=${token}`))}>Copy access link for another device</button> : <button className="min-h-11 underline" onClick={() => { setToken(""); setData(null); setInvite(""); setPayment(null); }}>Lock workspace</button>}</div>
       <Steps label="Progress for your latest invitation" steps={["Create invitation", "Share the QR", "Review & fulfill", "Received"]} current={fundStep} failed={!!latestProgress?.failed} />
       <section className={panel}><ProgramBuilder value={program} onChange={setProgram} /><h2 className="text-lg font-semibold">New invitation</h2>
         <label className="flex flex-col gap-2">Campaign name<input className={field} value={title} maxLength={80} onChange={e => setTitle(e.target.value)} /></label>
