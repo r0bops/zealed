@@ -1,11 +1,12 @@
 "use client";
 
 import { useChat } from "@ai-sdk/react";
-import { DefaultChatTransport } from "ai";
+import { DefaultChatTransport, lastAssistantMessageIsCompleteWithApprovalResponses } from "ai";
 import { useEffect, useRef, useState } from "react";
 import type { ZealedAgentUIMessage } from "@/lib/agent";
+import { CheckoutCard } from "./checkout";
 
-const SUGGESTIONS = ["Get me a ₹10 Airtel top-up", "I need an eSIM for India", "A ₹50 Flipkart gift card", "How do you keep my code private?"];
+const SUGGESTIONS = ["Get me the cheapest Airtel top-up", "I need an eSIM for India", "A ₹500 Flipkart gift card", "How do you keep my code private?"];
 
 // Same check as the server: phone numbers and long digit runs never leave the browser.
 const LOOKS_SENSITIVE = /(\+?\d[\d\s-]{8,}\d)/;
@@ -16,10 +17,14 @@ export function AgentChat({ model, simulatedCatalog, hasModelKey }: { model: str
   const [sessionId] = useState(() => crypto.randomUUID());
   const [input, setInput] = useState("");
   const [warning, setWarning] = useState<string | null>(null);
-  const { messages, sendMessage, status, error, stop } = useChat<ZealedAgentUIMessage>({
+  const { messages, sendMessage, status, error, stop, addToolApprovalResponse } = useChat<ZealedAgentUIMessage>({
     id: sessionId,
     transport: new DefaultChatTransport({ api: "/api/agent" }),
+    // After the buyer approves or declines, the agent continues on its own.
+    sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithApprovalResponses,
   });
+  const respond = (id: string, approved: boolean) =>
+    addToolApprovalResponse({ id, approved, reason: approved ? "Buyer approved in the app" : "Buyer declined in the app" });
   const scroller = useRef<HTMLDivElement>(null);
   const busy = status === "submitted" || status === "streaming";
 
@@ -58,7 +63,7 @@ export function AgentChat({ model, simulatedCatalog, hasModelKey }: { model: str
       <div ref={scroller} className="flex flex-1 flex-col gap-4 overflow-y-auto px-4 py-4" aria-live="polite">
         {!hasModelKey && (
           <Notice tone="danger">
-            <code className="font-mono">AI_GATEWAY_API_KEY</code> isn&apos;t set on the server. Add it to <code className="font-mono">.env.local</code> and restart.
+            <code className="font-mono">ANTHROPIC_API_KEY</code> isn&apos;t set on the server. Add it to <code className="font-mono">.env.local</code> and restart.
           </Notice>
         )}
         {messages.length === 0 && (
@@ -86,7 +91,7 @@ export function AgentChat({ model, simulatedCatalog, hasModelKey }: { model: str
                 {m.parts.map((p) => (p.type === "text" ? p.text : "")).join("")}
               </p>
             ) : (
-              m.parts.map((p, i) => <AssistantPart key={`${m.id}-${i}`} part={p} />)
+              m.parts.map((p, i) => <AssistantPart key={`${m.id}-${i}`} part={p} respond={respond} />)
             )}
           </div>
         ))}
@@ -145,7 +150,7 @@ function friendlyError(error: Error): string {
   return msg.length > 0 && msg.length < 200 ? msg : "Something went wrong. Try again.";
 }
 
-function AssistantPart({ part }: { part: Part }) {
+function AssistantPart({ part, respond }: { part: Part; respond: (approvalId: string, approved: boolean) => void }) {
   switch (part.type) {
     case "text":
       return part.text ? (
@@ -171,7 +176,21 @@ function AssistantPart({ part }: { part: Part }) {
       );
 
     case "tool-propose_order":
-      if (part.state !== "output-available") return <ToolChip pending={part.state !== "output-error"}>Preparing checkout…</ToolChip>;
+      if (part.state === "approval-requested")
+        return part.approval.isAutomatic ? null : (
+          <ApprovalCard reason={part.approval.requestReason} onApprove={() => respond(part.approval.id, true)} onDecline={() => respond(part.approval.id, false)} />
+        );
+      if (part.state === "approval-responded")
+        return <ToolChip pending={part.approval.approved}>{part.approval.approved ? "You approved. Preparing checkout…" : "You declined. Finding alternatives…"}</ToolChip>;
+      if (part.state === "output-denied")
+        return (
+          <Notice tone={part.approval.isAutomatic ? "danger" : "warn"}>
+            {part.approval.isAutomatic ? (part.approval.reason ?? "Blocked by guardrails") : "You declined this order. The agent will suggest alternatives."}
+          </Notice>
+        );
+      if (part.state !== "output-available") return <ToolChip pending={part.state !== "output-error"}>Checking guardrails…</ToolChip>;
+      if (!part.output.proposed)
+        return <Notice tone="danger">{"blocked" in part.output && part.output.blocked ? `Blocked by guardrails: ${part.output.reason}` : `Couldn't propose: ${"error" in part.output ? part.output.error : "unknown error"}`}</Notice>;
       return <CheckoutCard proposal={part.output} />;
 
     case "tool-get_order_status":
@@ -183,42 +202,37 @@ function AssistantPart({ part }: { part: Part }) {
   }
 }
 
-type Proposal = Extract<Part, { type: "tool-propose_order"; state: "output-available" }>["output"];
-
-function CheckoutCard({ proposal }: { proposal: Proposal }) {
-  if (!proposal.proposed) {
-    return (
-      <Notice tone="danger">
-        {"blocked" in proposal && proposal.blocked ? `Blocked by guardrails: ${proposal.reason}` : `Couldn't propose: ${"error" in proposal ? proposal.error : "unknown error"}`}
-      </Notice>
-    );
-  }
+function ApprovalCard({ reason, onApprove, onDecline }: { reason?: string; onApprove: () => void; onDecline: () => void }) {
+  const [done, setDone] = useState(false);
   return (
-    <div className="flex max-w-md flex-col gap-3 rounded-xl border border-accent/50 bg-accent-soft/60 p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-xs font-medium tracking-wide text-muted uppercase">Checkout proposal</p>
-          <p className="font-semibold">{proposal.productName}</p>
-          <p className="text-sm text-muted">{proposal.packageValue}</p>
-        </div>
-        <Verdict v={proposal.verdict} />
+    <div className="flex max-w-md flex-col gap-3 rounded-xl border border-accent/60 bg-accent-soft/60 p-4">
+      <p className="text-xs font-medium tracking-wide text-muted uppercase">Your approval is needed</p>
+      <p className="text-sm">{reason ?? "This order is above the automatic spending limit."}</p>
+      <p className="text-xs text-muted">The agent can&apos;t approve this itself. Only you can, here.</p>
+      <div className="flex gap-2">
+        <button
+          type="button"
+          disabled={done}
+          onClick={() => {
+            setDone(true);
+            onApprove();
+          }}
+          className="rounded-lg bg-foreground px-3 py-2 text-sm font-medium text-background disabled:opacity-50"
+        >
+          Approve
+        </button>
+        <button
+          type="button"
+          disabled={done}
+          onClick={() => {
+            setDone(true);
+            onDecline();
+          }}
+          className="rounded-lg border border-line px-3 py-2 text-sm font-medium disabled:opacity-50"
+        >
+          Decline, show cheaper options
+        </button>
       </div>
-      <dl className="grid grid-cols-2 gap-2 text-sm">
-        <div>
-          <dt className="text-muted">Price</dt>
-          <dd className="font-mono tabular-nums">{proposal.priceUsd}</dd>
-        </div>
-        <div>
-          <dt className="text-muted">Authorise with</dt>
-          <dd className="font-mono tabular-nums">{proposal.authorisationZec} TAZ</dd>
-        </div>
-      </dl>
-      {proposal.needsPhone && (
-        <p className="text-sm">The phone number goes in a secure field at checkout. It&apos;s encrypted in your browser and wiped after delivery.</p>
-      )}
-      <button type="button" disabled className="rounded-lg bg-foreground px-3 py-2 text-sm font-medium text-background opacity-50" title="Checkout is the next build step">
-        Continue to checkout (coming next)
-      </button>
     </div>
   );
 }
