@@ -1,35 +1,32 @@
 import { createAgentUIStreamResponse } from "ai";
 import { createZealedAgent } from "@/lib/agent";
-import { logAgentEvent } from "@/lib/orders";
+import { validateChatMessages } from "@/lib/chat-privacy";
 import { log, safeError } from "@/lib/log";
 
 export const maxDuration = 60;
-
-// Phone numbers or long digit runs must never reach the model or the agent log.
-const LOOKS_SENSITIVE = /(\+?\d[\d\s-]{8,}\d)/;
 
 export async function POST(req: Request) {
   if (!process.env.ANTHROPIC_API_KEY) {
     return Response.json({ error: "ANTHROPIC_API_KEY is not set on the server" }, { status: 503 });
   }
-  const body = (await req.json()) as { id?: string; messages?: unknown[] };
-  const sessionId = typeof body.id === "string" ? body.id.slice(0, 64) : crypto.randomUUID();
-  const messages = Array.isArray(body.messages) ? body.messages : [];
-
-  const last = messages.at(-1) as { role?: string; parts?: { type: string; text?: string }[] } | undefined;
-  const lastText = last?.role === "user" ? (last.parts ?? []).filter((p) => p.type === "text").map((p) => p.text).join(" ") : "";
-  if (LOOKS_SENSITIVE.test(lastText)) {
-    return Response.json(
-      { error: "That looks like a phone number or code. Don't share it in chat: use the secure field on the checkout card." },
-      { status: 400 },
-    );
+  let sessionId: string;
+  let messages: unknown[];
+  try {
+    const raw = await req.text();
+    if (raw.length > 128_000) return Response.json({ error: "Chat is too large" }, { status: 413 });
+    const body = JSON.parse(raw);
+    if (!body || typeof body !== "object") throw new Error("Invalid chat");
+    sessionId = typeof body.id === "string" && /^[A-Za-z0-9_-]{1,64}$/.test(body.id) ? body.id : crypto.randomUUID();
+    messages = validateChatMessages(body.messages);
+  } catch {
+    return Response.json({ error: "Invalid chat or sensitive information detected. Keep phone numbers, codes and keys out of chat; use the secure checkout field." }, { status: 400 });
   }
-  if (lastText) logAgentEvent(sessionId, "user", null, { text: lastText.slice(0, 500) });
 
   try {
     return await createAgentUIStreamResponse({
       agent: createZealedAgent(sessionId),
       uiMessages: messages,
+      onError: () => "Agent request failed. Please try again.",
     });
   } catch (err) {
     log.error("agent failed", { err: safeError(err) });

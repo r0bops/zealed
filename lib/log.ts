@@ -30,6 +30,6 @@ export const log = {
 
 /** Errors from HTTP clients can embed response bodies (= redemption codes). Keep only safe fields. */
 export function safeError(err: unknown): { name: string; message: string } {
-  if (err instanceof Error) return { name: err.name, message: err.message.slice(0, 200) };
+  if (err instanceof Error) return { name: "Error", message: "Operation failed" };
   return { name: "Error", message: "non-error thrown" };
 }

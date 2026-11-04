@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+import { eventMetadata } from "./chat-privacy";
 import { and, desc, eq, gte, inArray, sql } from "drizzle-orm";
 import { db, schema } from "./db/client";
 import type { Order } from "./db/schema";
@@ -108,7 +110,7 @@ export function publicOrder(o: Order) {
 export function logAgentEvent(sessionId: string, kind: "user" | "assistant" | "tool_call" | "tool_result", name: string | null, payload: unknown) {
   db()
     .insert(agentEvents)
-    .values({ sessionId, kind, name, payload: JSON.stringify(payload), createdAt: now() })
+    .values({ sessionId: createHash("sha256").update(sessionId).digest("hex"), kind, name: ["search_catalog", "quote", "propose_order", "get_order_status", "guardrails", "checkout.order_created"].includes(name ?? "") ? name : null, payload: JSON.stringify(eventMetadata(payload)), createdAt: now() })
     .run();
 }
 

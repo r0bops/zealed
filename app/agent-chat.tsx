@@ -4,12 +4,12 @@ import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, lastAssistantMessageIsCompleteWithApprovalResponses } from "ai";
 import { useEffect, useRef, useState } from "react";
 import type { ZealedAgentUIMessage } from "@/lib/agent";
+import { looksSensitive } from "@/lib/chat-privacy";
 import { CheckoutCard } from "./checkout";
 
 const SUGGESTIONS = ["Get me the cheapest Airtel top-up", "I need an eSIM for India", "A ₹500 Flipkart gift card", "How do you keep my code private?"];
 
-// Same check as the server: phone numbers and long digit runs never leave the browser.
-const LOOKS_SENSITIVE = /(\+?\d[\d\s-]{8,}\d)/;
+// Best-effort local guard; chat is not a secure input for secrets.
 
 type Part = ZealedAgentUIMessage["parts"][number];
 
@@ -35,7 +35,7 @@ export function AgentChat({ model, simulatedCatalog, hasModelKey }: { model: str
   function send(text: string) {
     const t = text.trim();
     if (!t || busy) return;
-    if (LOOKS_SENSITIVE.test(t)) {
+    if (looksSensitive(t)) {
       setWarning("That looks like a phone number or code. It wasn't sent. Use the secure field on the checkout card instead.");
       return;
     }
