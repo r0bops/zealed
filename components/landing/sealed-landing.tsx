@@ -1,5 +1,6 @@
 import Link from "next/link";
 import "./landing.css";
+import { SealedChest } from "./sealed-chest";
 import { ZealedName } from "./zealed-name";
 
 // Turbopack rewrites *.module.css into global CSS, so class names are applied directly.
@@ -24,7 +25,7 @@ export function SealedLanding() {
       <a className={styles.skip} href="#main">Skip to content</a>
       <nav className={styles.nav}>
         <div className={`${styles.wrap} ${styles.navInner}`}>
-          <Link href="/" aria-label="Zealed home"><Logo className={styles.logo} /></Link>
+          <Link href="/" aria-label="Zealed home"><Logo className={`${styles.logo} ${styles.in}`} /></Link>
           <div className={styles.links}>
             <a href="#how">Missions</a>
             <a href="#how">How it works</a>
@@ -41,18 +42,20 @@ export function SealedLanding() {
         <header className={styles.hero}>
           <div className={`${styles.wrap} ${styles.heroInner}`}>
             <div>
-              <div className={styles.eyebrow}><span className={styles.ok}>●</span> Shielded on Zcash testnet</div>
-              <h1>Finish the mission.<span>Only you open the reward.</span></h1>
-              <p className={styles.heroLead}>An agent picks a perk that works for you. The sponsor authorises it with a shielded payment, and it&apos;s sealed to your browser.</p>
-              <div className={styles.ctas}>
+              <div className={`${styles.eyebrow} ${styles.in} ${styles.d1}`}><span className={styles.ok}>●</span> Shielded on Zcash testnet</div>
+              <h1>
+                <span className={`${styles.line} ${styles.in} ${styles.d2}`}>Finish the mission.</span>
+                <span className={`${styles.goldLine} ${styles.in} ${styles.d3}`}>Only you open the reward.</span>
+              </h1>
+              <p className={`${styles.heroLead} ${styles.in} ${styles.d4}`}>An agent picks a perk that works for you. The sponsor authorises it with a shielded payment, and it&apos;s sealed to your browser.</p>
+              <div className={`${styles.ctas} ${styles.in} ${styles.d5}`}>
                 <Link className={`${styles.btn} ${styles.goldBtn}`} href="/claim">Claim a reward →</Link>
                 <Link className={styles.btn} href="/chat">Try the agent →</Link>
               </div>
             </div>
             <div className={styles.chest}>
               <div className={styles.chestFloat}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src="/sealed-chest-v2.svg" alt="Sealed chest" />
+                <SealedChest />
               </div>
             </div>
           </div>
@@ -65,7 +68,7 @@ export function SealedLanding() {
           </div>
         </div>
 
-        <section className={styles.section} id="how" aria-labelledby="how-title">
+        <section className={`${styles.section} ${styles.reveal}`} id="how" aria-labelledby="how-title">
           <div className={styles.wrap}>
             <div className={styles.head}><span className={styles.num}>01</span><h2 id="how-title">How it works</h2></div>
             <div className={styles.grid3}>
@@ -91,7 +94,7 @@ export function SealedLanding() {
           </div>
         </section>
 
-        <section className={styles.section} aria-labelledby="who-title">
+        <section className={`${styles.section} ${styles.reveal}`} aria-labelledby="who-title">
           <div className={styles.wrap}>
             <div className={styles.head}><span className={styles.num}>02</span><h2 id="who-title">Who it&apos;s for</h2></div>
             <div className={styles.grid3}>
@@ -113,18 +116,18 @@ export function SealedLanding() {
             </div>
             <div className={`${styles.grid3} ${styles.stack}`}>
               <article className={`${styles.card} ${styles.soonCard}`}>
-                <h3>Proof of attendance via Reclaim<span className={styles.soon}>Coming soon</span></h3>
+                <h3>Proof of attendance via Reclaim<span className={styles.soon}>Built, not live</span></h3>
                 <p>zkTLS proof that you attended a Luma event.</p>
               </article>
               <article className={`${styles.card} ${styles.soonCard}`}>
-                <h3>FROST 2-of-3 treasury<span className={styles.soon}>Coming soon</span></h3>
+                <h3>FROST 2-of-3 treasury<span className={styles.soon}>Built, not live</span></h3>
                 <p>Sponsor funds held under threshold signatures.</p>
               </article>
             </div>
           </div>
         </section>
 
-        <section className={styles.section} aria-labelledby="replay-title">
+        <section className={`${styles.section} ${styles.reveal}`} aria-labelledby="replay-title">
           <div className={styles.wrap}>
             <div className={styles.head}><span className={styles.num}>03</span><h2 id="replay-title">A copied link opens nothing</h2></div>
             <div className={styles.term}>
@@ -144,7 +147,7 @@ export function SealedLanding() {
           </div>
         </section>
 
-        <section className={styles.section} id="privacy" aria-labelledby="privacy-title">
+        <section className={`${styles.section} ${styles.reveal}`} id="privacy" aria-labelledby="privacy-title">
           <div className={styles.wrap}>
             <div className={styles.head}><span className={styles.num}>04</span><h2 id="privacy-title">What each side sees</h2></div>
             <div className={styles.grid3}>
@@ -171,7 +174,7 @@ export function SealedLanding() {
           </div>
         </section>
 
-        <section className={styles.section} id="evidence" aria-labelledby="evidence-title">
+        <section className={`${styles.section} ${styles.reveal}`} id="evidence" aria-labelledby="evidence-title">
           <div className={styles.wrap}>
             <div className={styles.head}><span className={styles.num}>05</span><h2 id="evidence-title">Evidence</h2></div>
             <p className={styles.lead}>One end-to-end run on Zcash testnet, 4 Nov 2026. Nothing else is claimed.</p>
@@ -206,7 +209,7 @@ export function SealedLanding() {
           </div>
         </section>
 
-        <section className={styles.final}>
+        <section className={`${styles.final} ${styles.reveal}`}>
           <div className={styles.wrap}>
             <div className={styles.eyebrow}>Testnet · open source</div>
             <h2>The next reward is sealed for you.</h2>
@@ -218,7 +221,7 @@ export function SealedLanding() {
         </section>
       </main>
 
-      <footer className={styles.footer}>
+      <footer className={`${styles.footer} ${styles.reveal}`}>
         <div className={styles.wrap}>
           <div className={styles.cols}>
             <div>
@@ -273,6 +276,8 @@ function BuiltWith({ duplicate = false }: { duplicate?: boolean }) {
       <span>zkool</span>
       <span>libsodium</span>
       <span>Claude Haiku</span>
+      <span>FROST 2-of-3<span className={styles.soon}>Built, not live</span></span>
+      <span>Reclaim Protocol<span className={styles.soon}>Built, not live</span></span>
     </div>
   );
 }
