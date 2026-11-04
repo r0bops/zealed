@@ -13,7 +13,7 @@ Organizers build a checklist of event missions and fund the prizes. An AI agent 
 [![libsodium](https://img.shields.io/badge/libsodium-crypto__box__seal-5b3e96)](https://libsodium.org)
 [![Claude](https://img.shields.io/badge/agent-Claude%20Haiku%205.5-d97757)](https://www.anthropic.com)
 [![Tests](https://img.shields.io/badge/tests-153%20passing-brightgreen)](#testing)
-[![CI](https://github.com/r0bops/zealed/actions/workflows/ci.yml/badge.svg)](https://github.com/r0bops/zealed/actions/workflows/ci.yml)
+[![CI](https://github.com/zealed-xyz/zealed/actions/workflows/ci.yml/badge.svg)](https://github.com/zealed-xyz/zealed/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/License-MIT-green)](./LICENSE)
 
 [Live app](https://tryzealed.xyz) · [Try it](#try-the-live-site) · [Evidence](#testnet-transaction-evidence) · [What works](#what-actually-works) · [Privacy and trust](#privacy-and-trust) · [Bitrefill](#agentic-commerce-with-bitrefill) · [Security model](#security-model)
@@ -456,7 +456,7 @@ Bitrefill purchases on https://tryzealed.xyz run in test mode: real API calls fo
 ### Run it yourself
 
 ```bash
-git clone https://github.com/r0bops/zealed
+git clone https://github.com/zealed-xyz/zealed
 cd zealed
 pnpm install
 cp .env.example .env.local
