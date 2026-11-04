@@ -23,8 +23,11 @@ import { serverSecret } from "./server-secret";
 export type MissionMode = "reclaim" | "quiz";
 type Attendance = { eventIds: string[]; statuses: string[] };
 type ReclaimConfig = { appId: string; appSecret: string; providerId: string; attendance: Attendance | null };
-/** Reclaim's public "Luma Invited to an Event" provider, the default in attendance mode. */
-export const LUMA_PROVIDER_ID = "bee752c9-c41b-44b8-9e3d-d3462bcb3dbc";
+/**
+ * Zealed's Luma provider for the Free Society Hackathon, the default in attendance mode. It requests
+ * api.luma.com/event/get for the event and reveals only `event_id`, `approval_status` and `ticket_key`.
+ */
+export const LUMA_PROVIDER_ID = "10103ed6-3256-4a96-a2ae-d5230df0a649";
 const csv = (value: string | undefined) => (value ?? "").split(",").map(v => v.trim()).filter(Boolean);
 
 function attendance(): Attendance | null {

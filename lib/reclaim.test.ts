@@ -2,11 +2,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { randomBytes } from "node:crypto";
+import { createHmac, randomBytes } from "node:crypto";
 import { db } from "./db/client";
 import { campaign, claimForCampaign, createCampaign } from "./campaigns";
 import { generateKeyPair } from "./sodium";
 import { LUMA_PROVIDER_ID, missionContext, verifyMissionProof } from "./reclaim";
+import { serverSecret } from "./server-secret";
 import { POST as claimRoute } from "@/app/api/campaigns/[id]/claim/route";
 import { POST as reclaimRoute } from "@/app/api/campaigns/[id]/reclaim/route";
 import { GET as invitationRoute } from "@/app/api/campaigns/[id]/route";
@@ -34,8 +35,9 @@ function proofFor(campaignId: string, publicKey: string, providerId = PROVIDER, 
     extractedParameterValues: unsigned, publicData: { email: IDENTITY.email },
   };
 }
-const LUMA_USER = "usr-synthetic-Qx81Lm";
-const attendee = (overrides: Record<string, string> = {}) => ({ event_id: "evt-test123", user_id: LUMA_USER, approval_status: "Approved", ...overrides });
+// The exact parameters Zealed's Luma provider emits.
+const LUMA_TICKET = "tkSynthQx81Lm";
+const attendee = (overrides: Record<string, string> = {}) => ({ event_id: "evt-test123", approval_status: "approved", ticket_key: LUMA_TICKET, ...overrides });
 function enableAttendance() {
   vi.stubEnv("RECLAIM_APP_ID", "0xapp-under-test"); vi.stubEnv("RECLAIM_APP_SECRET", appSecret);
   vi.stubEnv("LUMA_EVENT_ID", "evt-test123, testhackathon");
@@ -200,10 +202,11 @@ describe("anonymous Luma attendance", () => {
     const res = await claim(c.id, c.token, { proofs: [proofFor(c.id, key.publicKey, LUMA_PROVIDER_ID, attendee())], publicKey: key.publicKey, secret: token });
     expect(res.status).toBe(200);
     expect(sdk.verifyProof.mock.calls[0][1]).toEqual({ providerId: LUMA_PROVIDER_ID });
+    expect(LUMA_PROVIDER_ID).toBe("10103ed6-3256-4a96-a2ae-d5230df0a649"); // Zealed's published Luma provider
     const rows = nullifiers();
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({ event_id: "evt-test123", claim_id: res.data.id });
-    expect(rows[0].nullifier).toMatch(/^[0-9a-f]{64}$/);
+    expect(rows[0].nullifier).toBe(createHmac("sha256", serverSecret("attendance")).update(`evt-test123:${LUMA_TICKET}`).digest("hex"));
     await expect(verifyMissionProof([proofFor(c.id, key.publicKey, LUMA_PROVIDER_ID, attendee())], c.id, key.publicKey))
       .resolves.toEqual({ verified: true, providerId: LUMA_PROVIDER_ID, eventId: "evt-test123", nullifier: rows[0].nullifier });
     const info = await (await invitationRoute(new Request(`http://localhost/api/campaigns/${c.id}`, { headers: { authorization: `Bearer ${c.token}` } }), params(c.id))).json();
@@ -219,7 +222,7 @@ describe("anonymous Luma attendance", () => {
     expect(again.data.error).toBe("This attendee has already claimed a reward.");
     expect(claimForCampaign(second.c.id)).toBeUndefined();
     expect(campaign(second.c.id).attempts).toBe(0); // rolled back with the claim
-    const other = await claim(second.c.id, second.c.token, { proofs: [proofFor(second.c.id, second.key.publicKey, LUMA_PROVIDER_ID, attendee({ user_id: "usr-someone-else" }))], publicKey: second.key.publicKey, secret: second.token });
+    const other = await claim(second.c.id, second.c.token, { proofs: [proofFor(second.c.id, second.key.publicKey, LUMA_PROVIDER_ID, attendee({ ticket_key: "tkSomeoneElse" }))], publicKey: second.key.publicKey, secret: second.token });
     expect(other.status).toBe(200);
     expect(nullifiers()).toHaveLength(2);
   });
@@ -239,7 +242,7 @@ describe("anonymous Luma attendance", () => {
     expect((await attempt(attendee({ approval_status: "GOING" }))).status).toBe(200);
   });
 
-  it("never persists, returns or logs the Luma user id", async () => {
+  it("never persists, returns or logs the Luma ticket key", async () => {
     enableAttendance();
     const logs = (["log", "info", "warn", "error", "debug"] as const).map(m => vi.spyOn(console, m).mockImplementation(() => {}));
     const first = await player(), second = await player();
@@ -250,7 +253,7 @@ describe("anonymous Luma attendance", () => {
     ];
     expect(responses.map(r => r.status)).toEqual([400, 200, 409]);
     const surfaces = [dumpDb(), JSON.stringify(responses), JSON.stringify(logs.map(l => l.mock.calls))];
-    for (const text of surfaces) for (const value of [LUMA_USER, "user_id", "extractedParameters"]) expect(text).not.toContain(value);
+    for (const text of surfaces) for (const value of [LUMA_TICKET, "ticket_key", "extractedParameters"]) expect(text).not.toContain(value);
   });
 
   it("refuses to start or accept attendance proofs without a server secret, without charging an attempt", async () => {
