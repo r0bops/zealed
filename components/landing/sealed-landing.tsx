@@ -116,12 +116,12 @@ export function SealedLanding() {
             </div>
             <div className={`${styles.grid3} ${styles.stack}`}>
               <article className={`${styles.card} ${styles.soonCard}`}>
-                <h3>Proof of attendance via Reclaim<span className={styles.soon}>Built, not live</span></h3>
-                <p>zkTLS proof that you attended a Luma event.</p>
+                <h3>Proof of attendance via Reclaim<span className={styles.live}>Verified live</span></h3>
+                <p>zkTLS proof that you attended a Luma event. A real Free Society Hackathon attendance proof was verified on 4 Nov.</p>
               </article>
               <article className={`${styles.card} ${styles.soonCard}`}>
-                <h3>FROST 2-of-3 treasury<span className={styles.soon}>Built, not live</span></h3>
-                <p>Sponsor funds held under threshold signatures.</p>
+                <h3>FROST 2-of-3 treasury<span className={styles.live}>Live on testnet</span></h3>
+                <p>Sponsor funds held under threshold signatures. Two of three signers sent a <a className={styles.gold} href="https://testnet.zcashexplorer.app/transactions/bb88e3f44c5c3f3959280ea80074ce3bfc17b53fc739079598103fdcdaec28ab" target="_blank" rel="noreferrer">real testnet payment →</a></p>
               </article>
             </div>
           </div>
@@ -277,8 +277,8 @@ function BuiltWith({ duplicate = false }: { duplicate?: boolean }) {
       <span>zkool</span>
       <span>libsodium</span>
       <span>Claude Haiku</span>
-      <span>FROST 2-of-3<span className={styles.soon}>Built, not live</span></span>
-      <span>Reclaim Protocol<span className={styles.soon}>Built, not live</span></span>
+      <span>FROST 2-of-3<span className={styles.live}>Live on testnet</span></span>
+      <span>Reclaim Protocol<span className={styles.live}>Verified live</span></span>
     </div>
   );
 }

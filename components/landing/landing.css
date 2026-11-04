@@ -453,6 +453,19 @@
   white-space: nowrap;
 }
 
+.zl-live {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 11px;
+  border: 1px solid var(--ok);
+  color: var(--ok);
+  border-radius: 99px;
+  padding: 3px 9px;
+  margin-left: 8px;
+  vertical-align: middle;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+
 .zl-term {
   background: #050505;
   border: 1px solid var(--line);
