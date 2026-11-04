@@ -102,7 +102,7 @@ describe("atomic spending reservations", () => {
   it("never lets price drift exceed the sponsor campaign budget", () => {
     reserveOrder({ ...row("sponsored", 400), status: "paid", approvedAt: Date.now() }, "sponsored", true);
     claimFulfillment("sponsored", "live");
-    db().$client.prepare("INSERT INTO campaigns VALUES (?,?,?,?,?,?,?,0,?)")
+    db().$client.prepare("INSERT INTO campaigns (id,title,budget_cents,country,product_ids,invite_hash,expires_at,attempts,created_at) VALUES (?,?,?,?,?,?,?,0,?)")
       .run("campaign", "Test", 400, "IN", "[]", "hash", Date.now() + 60_000, Date.now());
     db().$client.prepare("INSERT INTO reward_claims(id,campaign_id,secret_hash,buyer_key,state,order_id,updated_at) VALUES (?,?,?,?,?,?,?)")
       .run("claim", "campaign", "hash", "key", "ordered", "sponsored", Date.now());

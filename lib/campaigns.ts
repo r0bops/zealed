@@ -20,7 +20,7 @@ export const campaignInput = z.object({
 }).refine(c => c.program ? !c.program.prizes.some(p => p.kind === "giftcard" || p.kind === "esim") || c.productIds.length > 0 : c.productIds.length > 0);
 export type CampaignInput = z.infer<typeof campaignInput>;
 export type Choice = { productId: string; productName: string; kind: "giftcard" | "esim"; packageValue: string; priceCents: number; reason: string };
-export type Campaign = { id: string; title: string; budget_cents: number; country: string; product_ids: string; invite_hash: string; expires_at: number; attempts: number; created_at: number };
+export type Campaign = { id: string; title: string; budget_cents: number; country: string; product_ids: string; invite_hash: string; expires_at: number; attempts: number; created_at: number; owner?: string | null };
 export type Claim = { id: string; campaign_id: string; secret_hash: string; buyer_key: string; state: "selecting" | "selection_failed" | "proposed" | "ordered"; choice: string | null; order_id: string | null; attempts: number; updated_at: number };
 export class CampaignError extends Error {
   constructor(readonly status: number, message: string) { super(message); }
@@ -32,6 +32,56 @@ export function requireAdmin(req: Request) {
   const key = process.env.CAMPAIGN_ADMIN_TOKEN;
   if (!key || key.length < 32) throw new CampaignError(503, "Campaign creation is not configured. Ask the organizer to set a strong admin token.");
   if (!secretMatches(bearer(req), digest(key))) throw new CampaignError(401, "Enter the organizer access token.");
+}
+// Sponsors: the operator token sees every campaign. When open access is on (test purchases only),
+// "Start funding" mints an anonymous sponsor key kept in that browser; the server stores only its hash,
+// and that sponsor sees and manages only the campaigns it created.
+export type Sponsor = { admin: true; id: null } | { admin: false; id: string };
+const SPONSOR_KEY = /^zs_[A-Za-z0-9_-]{43}$/;
+export function openSponsorsEnabled() {
+  return process.env.SPONSOR_OPEN_ACCESS === "1" && process.env.BITREFILL_PURCHASES !== "live";
+}
+export const openSponsorLimits = () => ({
+  maxBudgetCents: Number(process.env.OPEN_SPONSOR_MAX_CENTS ?? 500),
+  campaignsPerDay: Number(process.env.OPEN_SPONSOR_CAMPAIGNS_PER_DAY ?? 5),
+  sessionsPerDay: Number(process.env.OPEN_SPONSOR_SESSIONS_PER_DAY ?? 300),
+});
+export function requireSponsor(req: Request): Sponsor {
+  const token = bearer(req), key = process.env.CAMPAIGN_ADMIN_TOKEN;
+  if (key && key.length >= 32 && secretMatches(token, digest(key))) return { admin: true, id: null };
+  if (openSponsorsEnabled() && SPONSOR_KEY.test(token)) {
+    const id = digest(token);
+    if (db().$client.prepare("SELECT 1 FROM sponsors WHERE id = ?").get(id)) return { admin: false, id };
+  }
+  if (!openSponsorsEnabled() && (!key || key.length < 32)) throw new CampaignError(503, "Campaign creation is not configured. Ask the organizer to set a strong admin token.");
+  throw new CampaignError(401, openSponsorsEnabled() ? "Your sponsor session was not found. Start funding again." : "Enter the organizer access token.");
+}
+export function createSponsor(): string {
+  if (!openSponsorsEnabled()) throw new CampaignError(403, "Open sponsor sessions are off. Use the organizer access token.");
+  const { n } = db().$client.prepare("SELECT COUNT(*) AS n FROM sponsors WHERE created_at > ?").get(Date.now() - 86_400_000) as { n: number };
+  if (n >= openSponsorLimits().sessionsPerDay) throw new CampaignError(429, "New sponsor sessions are paused for today. Try again tomorrow.");
+  const token = "zs_" + randomBytes(32).toString("base64url");
+  db().$client.prepare("INSERT INTO sponsors (id, created_at) VALUES (?, ?)").run(digest(token), Date.now());
+  return token;
+}
+/** Open-sponsor caps, checked before a campaign is created. The operator is bound only by the global caps. */
+export function checkOpenSponsorCampaign(s: Sponsor, budgetCents: number) {
+  if (s.admin) return;
+  const limits = openSponsorLimits();
+  if (budgetCents > limits.maxBudgetCents) throw new CampaignError(400, `Open sponsor campaigns are limited to $${(limits.maxBudgetCents / 100).toFixed(2)}.`);
+  const { n } = db().$client.prepare("SELECT COUNT(*) AS n FROM campaigns WHERE owner = ? AND created_at > ?").get(s.id, Date.now() - 86_400_000) as { n: number };
+  if (n >= limits.campaignsPerDay) throw new CampaignError(429, `You can create ${limits.campaignsPerDay} campaigns per day.`);
+}
+export function listCampaigns(s: Sponsor): Campaign[] {
+  return (s.admin
+    ? db().$client.prepare("SELECT * FROM campaigns ORDER BY created_at DESC LIMIT 30").all()
+    : db().$client.prepare("SELECT * FROM campaigns WHERE owner = ? ORDER BY created_at DESC LIMIT 30").all(s.id)) as Campaign[];
+}
+/** A campaign this sponsor may manage. Other sponsors' campaigns look as if they don't exist. */
+export function ownedCampaign(id: string, s: Sponsor): Campaign {
+  const c = campaign(id);
+  if (!s.admin && c.owner !== s.id) throw new CampaignError(404, "Campaign not found.");
+  return c;
 }
 export function campaign(id: string): Campaign {
   const c = db().$client.prepare("SELECT * FROM campaigns WHERE id = ?").get(id) as Campaign | undefined;
@@ -51,12 +101,12 @@ export function claim(id: string, token: string): Claim {
 export function claimForCampaign(id: string) {
   return db().$client.prepare("SELECT * FROM reward_claims WHERE campaign_id = ?").get(id) as Claim | undefined;
 }
-export function createCampaign(input: CampaignInput) {
+export function createCampaign(input: CampaignInput, owner: string | null = null) {
   const id = crypto.randomUUID();
   const token = randomBytes(32).toString("base64url");
   return db().$client.transaction(() => {
-  db().$client.prepare("INSERT INTO campaigns (id,title,budget_cents,country,product_ids,invite_hash,expires_at,attempts,created_at) VALUES (?,?,?,?,?,?,?,0,?)")
-    .run(id, input.title, input.budgetCents, input.country, JSON.stringify([...new Set(input.productIds)]), digest(token), Date.now() + 24 * 60 * 60_000, Date.now());
+  db().$client.prepare("INSERT INTO campaigns (id,title,budget_cents,country,product_ids,invite_hash,expires_at,attempts,created_at,owner) VALUES (?,?,?,?,?,?,?,0,?,?)")
+    .run(id, input.title, input.budgetCents, input.country, JSON.stringify([...new Set(input.productIds)]), digest(token), Date.now() + 24 * 60 * 60_000, Date.now(), owner);
   if (input.program) storeProgram(id, input.program);
   return { id, token };
   }).immediate();

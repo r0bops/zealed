@@ -9,7 +9,10 @@ import { ProgramBuilder, initialProgram } from "../program-builder";
 import { ProgramAdmin } from "../program-admin";
 import type { ProgramInput, PublicProgram } from "@/lib/program-schema";
 type Summary = { program?: PublicProgram; acknowledged?: number; id: string; title: string; budgetCents: number; country: string; claimed: number; delivered: number; reservedCents: number; deliveredCents: number; status: string; choice: Choice | null };
-type Listing = { campaigns: Summary[]; simulatedCatalog: boolean; purchaseMode: string };
+type Listing = { campaigns: Summary[]; simulatedCatalog: boolean; purchaseMode: string; openSponsor?: boolean; maxBudgetCents?: number };
+// The anonymous sponsor key for this browser. The server stores only its hash.
+const SPONSOR_STORAGE = "zealed:sponsor";
+const forgetSponsor = () => { try { localStorage.removeItem(SPONSOR_STORAGE); } catch { /* storage unavailable */ } };
 type Payment = { id: string; to: string; amountZec: string; memo: string; zip321: string; status: string; simulated: boolean; expiresAt: number };
 const TRACK = ["Shared", "Claimed", "Perk chosen", "Paid", "Delivered"];
 /** Steps completed for one campaign, from the claim state or the order status. */
@@ -36,10 +39,23 @@ export function CampaignDashboard() {
   const [searched, setSearched] = useState(false), [eligibility, setEligibility] = useState(false), [busy, setBusy] = useState(false);
   const [invite, setInvite] = useState(""), [payment, setPayment] = useState<Payment | null>(null), [payCampaign, setPayCampaign] = useState("");
   const [presenting, setPresenting] = useState<"" | "invite" | "payment">("");
+  const [openAccess, setOpenAccess] = useState<boolean | null>(null), [maxBudget, setMaxBudget] = useState(500);
+  useEffect(() => {
+    let saved = "";
+    try { saved = localStorage.getItem(SPONSOR_STORAGE) ?? ""; } catch { /* storage unavailable */ }
+    fetch("/api/sponsors", { cache: "no-store" }).then(r => r.json()).then((d: { open: boolean; maxBudgetCents: number }) => {
+      setOpenAccess(d.open); setMaxBudget(d.maxBudgetCents);
+      if (d.open && saved) setToken(saved);
+    }).catch(() => setOpenAccess(false));
+  }, []);
   useEffect(() => {
     if (!token) return;
     let live = true;
-    const load = () => request<Listing>("/api/campaigns", token).then(d => { if (live) setData(d); }).catch(e => { if (live) setError(e.message); });
+    const load = () => request<Listing>("/api/campaigns", token).then(d => { if (live) setData(d); }).catch(e => {
+      if (!live) return;
+      if ((e as Error).message.startsWith("Your sponsor session")) { forgetSponsor(); setToken(""); }
+      setError((e as Error).message);
+    });
     load(); const timer = setInterval(load, 4000); return () => { live = false; clearInterval(timer); };
   }, [token]);
   async function run(action: () => Promise<void>) { setBusy(true); setError(""); try { await action(); } catch (e) { setError((e as Error).message); } finally { setBusy(false); } }
@@ -49,11 +65,26 @@ export function CampaignDashboard() {
   return <RewardLayout title="Fund a reward" role="fund">
     <p className="text-muted">Create one invitation. Set required tasks and prize options. A participant completes every task, then chooses one reward. You review social/custom evidence and fulfill the selected prize. No deposit is held.</p>
     {error && <p role="alert" className="rounded-lg border border-danger p-3 text-sm text-danger">{error}</p>}
-    {!token ? <form onSubmit={unlock} className={panel}>
-      <label className="flex flex-col gap-2">Organizer access token<input autoComplete="current-password" type="password" required minLength={32} value={login} onChange={e => setLogin(e.target.value)} className={field} /></label>
-      <p className="text-xs text-muted">Use the token provided by the Zealed operator. It stays in memory for this session.</p><button disabled={busy} className={button}>{busy ? "Checking access…" : "Open organizer workspace"}</button>
-    </form> : <>
-      <div className="flex items-center justify-between gap-3 text-sm"><p>{data?.simulatedCatalog ? "SIMULATED catalog" : "Live catalog"} · Purchases: <strong>{data?.purchaseMode}</strong>{data?.purchaseMode === "test" && " (not redeemable)"}</p><button className="min-h-11 underline" onClick={() => { setToken(""); setData(null); setInvite(""); setPayment(null); }}>Lock workspace</button></div>
+    {!token ? <section className={panel}>
+      {openAccess !== false && <>
+        <h2 className="text-lg font-semibold">Start funding</h2>
+        <p className="text-sm text-muted">No account or code needed. This browser keeps a private sponsor key, so only you see and manage your campaigns. Test purchases only, up to ${(maxBudget / 100).toFixed(2)} per campaign.</p>
+        <button className={button} disabled={busy || openAccess === null} onClick={() => void run(async () => {
+          const d = await request<{ token: string }>("/api/sponsors", "", {});
+          try { localStorage.setItem(SPONSOR_STORAGE, d.token); } catch { /* storage unavailable: the session lasts until reload */ }
+          setToken(d.token);
+        })}>{busy ? "Starting…" : openAccess === null ? "Loading…" : "Start funding"}</button>
+      </>}
+      <details open={openAccess === false} className="text-sm">
+        <summary className="min-h-11 cursor-pointer py-2 text-muted">{openAccess === false ? "Organizer access token" : "I have an organizer token"}</summary>
+        <form onSubmit={unlock} className="mt-2 flex flex-col gap-3">
+          <input aria-label="Organizer access token" autoComplete="current-password" type="password" required minLength={32} value={login} onChange={e => setLogin(e.target.value)} className={field} />
+          <p className="text-xs text-muted">Use the token provided by the Zealed operator. It stays in memory for this session.</p>
+          <button disabled={busy} className={buttonSecondary}>{busy ? "Checking access…" : "Open organizer workspace"}</button>
+        </form>
+      </details>
+    </section> : <>
+      <div className="flex items-center justify-between gap-3 text-sm"><p>{data?.simulatedCatalog ? "SIMULATED catalog" : "Live catalog"} · Purchases: <strong>{data?.purchaseMode}</strong>{data?.purchaseMode === "test" && " (not redeemable)"}</p>{data?.openSponsor ? <span className="text-xs text-muted">Sponsor key saved in this browser</span> : <button className="min-h-11 underline" onClick={() => { setToken(""); setData(null); setInvite(""); setPayment(null); }}>Lock workspace</button>}</div>
       <Steps label="Progress for your latest invitation" steps={["Create invitation", "Share the QR", "Review & fulfill", "Received"]} current={fundStep} failed={!!latestProgress?.failed} />
       <section className={panel}><ProgramBuilder value={program} onChange={setProgram} /><h2 className="text-lg font-semibold">New invitation</h2>
         <label className="flex flex-col gap-2">Campaign name<input className={field} value={title} maxLength={80} onChange={e => setTitle(e.target.value)} /></label>

@@ -70,6 +70,7 @@ export const kv = sqliteTable("kv", {
 export const ADDED_COLUMNS: { table: string; column: string; ddl: string }[] = [
   { table: "orders", column: "cart_hash", ddl: "ALTER TABLE orders ADD COLUMN cart_hash TEXT" },
   { table: "orders", column: "fulfill_mode", ddl: "ALTER TABLE orders ADD COLUMN fulfill_mode TEXT" },
+  { table: "campaigns", column: "owner", ddl: "ALTER TABLE campaigns ADD COLUMN owner TEXT" },
 ];
 
 export type Listing = typeof listings.$inferSelect;
@@ -78,6 +79,7 @@ export type AgentEvent = typeof agentEvents.$inferSelect;
 
 // Bootstrap DDL kept next to the schema so a fresh volume works without a migration step.
 export const BOOTSTRAP_SQL = `
+CREATE TABLE IF NOT EXISTS sponsors (id TEXT PRIMARY KEY, created_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS campaign_programs (campaign_id TEXT PRIMARY KEY, config TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS mission_results (claim_id TEXT NOT NULL, task_id TEXT NOT NULL, status TEXT NOT NULL, evidence TEXT, attempts INTEGER NOT NULL, PRIMARY KEY(claim_id,task_id));
 CREATE TABLE IF NOT EXISTS prize_redemptions (claim_id TEXT PRIMARY KEY, prize_id TEXT NOT NULL, kind TEXT NOT NULL, state TEXT NOT NULL, address TEXT, txid TEXT UNIQUE, sealed_payload TEXT);
