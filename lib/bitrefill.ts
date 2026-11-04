@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 // Bitrefill REST v2 client. Only fulfill.ts may call the purchase/order methods.
 // Never log response bodies from createInvoice/getInvoice/getOrder: they can contain redemption codes.
 import { kvGet, kvSet } from "./orders";
@@ -105,11 +106,12 @@ async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
       signal: AbortSignal.timeout(25_000),
       cache: "no-store",
     });
-  } catch (e) {
+  } catch {
     // Network failure / timeout: we cannot know whether a POST was processed.
-    throw new BitrefillError(`network: ${(e as Error).name}`, null, null, false);
+    throw new BitrefillError("Bitrefill request failed", null, null, false);
   }
-  const text = await res.text();
+  let text: string;
+  try { text = await res.text(); } catch { throw new BitrefillError("Bitrefill response interrupted", res.status, null, false); }
   let body: unknown = null;
   try {
     body = text ? JSON.parse(text) : null;
@@ -119,14 +121,11 @@ async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   if (!res.ok) {
     const b = (body ?? {}) as { message?: string; error_code?: string; error?: string };
     const definite = res.status >= 400 && res.status < 500 && res.status !== 408 && res.status !== 429;
-    // Only the error code and status are kept; message is truncated and never contains redemption data on errors.
-    throw new BitrefillError(
-      `bitrefill ${res.status} ${b.error_code ?? ""}`.trim() + (b.message ? `: ${String(b.message).slice(0, 120)}` : ""),
-      res.status,
-      b.error_code ?? null,
-      definite,
-    );
+    const known = new Set(["missing_param", "invalid_param", "not_found", "out_of_stock", "balance_too_low", "too_many_items", "invalid_phone_number", "unsupported_operator", "invalid_value", "invalid_package_id"]);
+    const code = typeof b.error_code === "string" && known.has(b.error_code) ? b.error_code : null;
+    throw new BitrefillError(`Bitrefill request rejected (${res.status})`, res.status, code, definite);
   }
+  if (!body || typeof body !== "object") throw new BitrefillError("Invalid Bitrefill response", res.status, null, false);
   const wrapped = body as { data?: T };
   return (wrapped && typeof wrapped === "object" && "data" in wrapped ? wrapped.data : body) as T;
 }
@@ -158,8 +157,8 @@ export function priceToCents(price: unknown, accountCurrency: string): number | 
   if (cur === "USD") return Math.round(price * 100);
   if (cur === "BTC") {
     const rate = Number(process.env.BTC_USD_RATE || 70_000);
-    if (!(rate > 0)) return null;
-    const sats = Number.isInteger(price) ? price : price < 1 ? price * 1e8 : price; // integer = sats; tiny decimal = BTC
+    if (!Number.isFinite(rate) || !(rate > 0)) return null;
+    const sats = price; // REST BTC account prices are satoshis; never guess units from magnitude.
     return Math.max(1, Math.round((sats * rate) / 1_000_000)); // sats / 1e8 * rate * 100
   }
   return null;
@@ -194,21 +193,25 @@ export function normalize(p: Record<string, unknown>, accountCurrency: string): 
 const CATALOG_TTL_MS = 10 * 60_000;
 const CACHE_V = "v2"; // bump when the normalized shape or pricing changes
 
-let accountCurrencyCache: string | null = null;
-/** The currency Bitrefill quotes prices in (our balance currency). Cached; it doesn't change mid-event. */
+function cacheScope(): string {
+  const account = createHash("sha256").update(process.env.BITREFILL_API_KEY ?? "").digest("hex");
+  return `${CACHE_V}:${isSimulated() ? "fake" : "live"}:${account}:${process.env.BITREFILL_USE_TEST_PRODUCTS === "true"}:${process.env.BTC_USD_RATE ?? "70000"}`;
+}
+
 export async function accountCurrency(): Promise<string> {
-  if (accountCurrencyCache) return accountCurrencyCache;
-  const cached = kvGet<string>(`bitrefill:${CACHE_V}:account-currency`);
-  if (cached) return (accountCurrencyCache = cached);
-  const bal = await api<{ balance: number; currency: string }>(`/accounts/balance`);
-  accountCurrencyCache = String(bal.currency || "USD").toUpperCase();
-  kvSet(`bitrefill:${CACHE_V}:account-currency`, accountCurrencyCache);
-  return accountCurrencyCache;
+  const key = `bitrefill:${cacheScope()}:account-currency`;
+  const cached = kvGet<{ at: number; currency: string }>(key);
+  if (cached && Date.now() - cached.at < CATALOG_TTL_MS) return cached.currency;
+  const bal = await api<{ balance: number; currency: string }>("/accounts/balance");
+  if (typeof bal.currency !== "string") throw new BitrefillError("Missing account currency", null, null, true);
+  const currency = bal.currency.toUpperCase();
+  kvSet(key, { at: Date.now(), currency });
+  return currency;
 }
 
 export async function searchProducts(query: string, country = "IN"): Promise<CatalogProduct[]> {
   const q = query.trim().slice(0, 80);
-  const cacheKey = `catalog:${CACHE_V}:${country}:${q.toLowerCase()}`;
+  const cacheKey = `catalog:${cacheScope()}:${country}:${createHash("sha256").update(q.toLowerCase()).digest("hex")}`;
   const cached = kvGet<{ at: number; items: CatalogProduct[] }>(cacheKey);
   if (cached && Date.now() - cached.at < CATALOG_TTL_MS) return cached.items;
 
@@ -229,11 +232,11 @@ export async function searchProducts(query: string, country = "IN"): Promise<Cat
   return items;
 }
 
-export async function getProduct(id: string): Promise<CatalogProduct | null> {
+export async function getProduct(id: string, fresh = false): Promise<CatalogProduct | null> {
   if (isSimulated()) return SIMULATED_CATALOG.find((p) => p.id === id) ?? null;
-  const cacheKey = `product:${CACHE_V}:${id}`;
+  const cacheKey = `product:${cacheScope()}:${id}`;
   const cached = kvGet<{ at: number; item: CatalogProduct }>(cacheKey);
-  if (cached && Date.now() - cached.at < CATALOG_TTL_MS) return cached.item;
+  if (!fresh && cached && Date.now() - cached.at < CATALOG_TTL_MS) return cached.item;
   try {
     const [raw, cur] = await Promise.all([api<Record<string, unknown>>(`/products/${encodeURIComponent(id)}`), accountCurrency()]);
     const item = normalize(raw, cur);
@@ -248,15 +251,18 @@ export async function getProduct(id: string): Promise<CatalogProduct | null> {
 
 /** USD cents for a product + package value, or null if it can't be priced safely. */
 export function priceFor(p: CatalogProduct, value: string): number | null {
+  if (!p.inStock) return null;
   const pkg = p.packages.find((k) => k.value === value);
-  if (pkg?.priceCents) return pkg.priceCents;
-  if (p.id.startsWith("test-")) return 1; // test products: priced at 1 cent for the demo checkout
-  if (p.range?.priceRate) {
-    // price_rate is the account-currency price per unit of the product's face currency
-    const v = Number(value);
-    if (Number.isFinite(v) && v >= p.range.min && v <= p.range.max) return priceToCents(Math.max(1, Math.round(v * p.range.priceRate)), p.accountCurrency);
-  }
-  return null;
+  if (pkg) return Number.isSafeInteger(pkg.priceCents) && pkg.priceCents! > 0 ? pkg.priceCents : null;
+  const range = p.range;
+  if (!range || !/^\d+(?:\.\d+)?$/.test(value) || !Number.isFinite(range.step) || range.step <= 0) return null;
+  const v = Number(value);
+  const steps = (v - range.min) / range.step;
+  if (!Number.isFinite(v) || v < range.min || v > range.max || Math.abs(steps - Math.round(steps)) > 1e-8) return null;
+  if (!range.priceRate || !Number.isFinite(range.priceRate) || range.priceRate <= 0) return null;
+  const raw = v * range.priceRate;
+  const cents = priceToCents(p.accountCurrency === "BTC" ? Math.ceil(raw) : raw, p.accountCurrency);
+  return Number.isSafeInteger(cents) && cents! > 0 ? cents : null;
 }
 
 export async function getBalance(): Promise<{ balance: number; currency: string } | null> {
