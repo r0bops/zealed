@@ -12,10 +12,16 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const title = "Zealed — private mission rewards";
+const description =
+  "An agent picks a perk that works for you. The sponsor authorises it with a shielded payment, and it's sealed to your browser.";
+
 export const metadata: Metadata = {
-  title: "Zealed: private mission rewards",
-  description:
-    "Complete a mission and receive an agent-selected perk, authorised by a sponsor’s shielded testnet payment and sealed to your browser.",
+  title: { default: title, template: "%s" },
+  description,
+  icons: { icon: [{ url: "/favicon.svg", type: "image/svg+xml" }] },
+  openGraph: { title, description, type: "website", siteName: "Zealed" },
+  twitter: { card: "summary", title, description },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
