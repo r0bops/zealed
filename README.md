@@ -50,7 +50,7 @@ A paid purchase of a real (non-test) product is still to come.
 | **What it is** | Organizer/player mission rewards; standalone shopping disabled |
 | **Live URL** | https://tryzealed.xyz (also https://www.tryzealed.xyz). Bitrefill purchases there run in **test mode**, so codes aren't redeemable. Sponsors start with **Start funding**; no token is needed |
 | **Demo video** | TODO: https://… (2–3 minutes) |
-| **Testnet txid** | `1843616532cee751cbe556e902723d47b6675b6c92300b24070b8b6d1961f9ca`: a sponsor's shielded payment authorising a mission reward, mined at height 4581978. [zexplorer](https://zexplorer.app/testnet/tx/1843616532cee751cbe556e902723d47b6675b6c92300b24070b8b6d1961f9ca) · [zcashexplorer](https://testnet.zcashexplorer.app/transactions/1843616532cee751cbe556e902723d47b6675b6c92300b24070b8b6d1961f9ca). The first checkout payment was `1bb9548ea9ee04da491071e86f7287391aa52f3260c51ce6219324615768defd` (height 4581712). <!-- TODO: on 4 Nov, zexplorer's testnet index stopped at 4505881, so it shows "not found". Check the zcashexplorer link in a browser before submitting. --> |
+| **Testnet txid** | `1843616532cee751cbe556e902723d47b6675b6c92300b24070b8b6d1961f9ca`: a sponsor's shielded payment authorising a mission reward, mined at height 4581978. [explorer](https://testnet.zcashexplorer.app/transactions/1843616532cee751cbe556e902723d47b6675b6c92300b24070b8b6d1961f9ca). The first checkout payment was `1bb9548ea9ee04da491071e86f7287391aa52f3260c51ce6219324615768defd` (height 4581712). |
 | **Real purchase invoice ID** | TODO: needs event credits and `BITREFILL_PURCHASES=live` |
 | **Bitrefill test-product invoices** | `7d8e4569-daa5-4de9-9a35-518b7d42c47f` (mission reward, eSIM) · `2cc79a30-29c6-423a-9d7a-8844d63b671a` (mission reward, gift card) · `306668d4-01cd-4294-a08c-a6e94641eb11` (attendee-checked reward, gift card) · `98d4f316-c3fa-482a-9137-91723064b4e5` (checkout gift card) · `3f51bca9-39bc-4579-bd51-6df1fc584d4b` (checkout eSIM). Real API purchases of Bitrefill's free test products; the codes aren't redeemable |
 | **Team** | TODO: Name (@handle) |
@@ -399,4 +399,4 @@ TODO: choose a license (for example MIT) and add a LICENSE file.
 - Noir Wallet SDK: https://docs.zknoir.com/noir-sdk-integration/
 - ZIP 316 (unified addresses), ZIP 317 (fees), ZIP 321 (payment requests): https://zips.z.cash/
 - Testnet faucets: https://fauzec.com · https://faucet.testnet.valargroup.dev/
-- Testnet explorer: https://zexplorer.app (`/testnet/tx/<txid>`)
+- Testnet explorer: https://testnet.zcashexplorer.app (`/transactions/<txid>`)
