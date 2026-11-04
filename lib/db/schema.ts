@@ -44,6 +44,8 @@ export const orders = sqliteTable("orders", {
   releasedAt: integer("released_at"),
   wipedAt: integer("wiped_at"),
   failure: text("failure"),
+  cartHash: text("cart_hash"),
+  fulfillMode: text("fulfill_mode"), // simulate | test | live
   expiresAt: integer("expires_at").notNull(),
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
@@ -63,6 +65,12 @@ export const kv = sqliteTable("kv", {
   value: text("value").notNull(),
   updatedAt: integer("updated_at").notNull(),
 });
+
+// Columns added after the first schema; applied with ALTER TABLE when missing.
+export const ADDED_COLUMNS: { table: string; column: string; ddl: string }[] = [
+  { table: "orders", column: "cart_hash", ddl: "ALTER TABLE orders ADD COLUMN cart_hash TEXT" },
+  { table: "orders", column: "fulfill_mode", ddl: "ALTER TABLE orders ADD COLUMN fulfill_mode TEXT" },
+];
 
 export type Listing = typeof listings.$inferSelect;
 export type Order = typeof orders.$inferSelect;
@@ -114,6 +122,8 @@ CREATE TABLE IF NOT EXISTS orders (
   released_at INTEGER,
   wiped_at INTEGER,
   failure TEXT,
+  cart_hash TEXT,
+  fulfill_mode TEXT,
   expires_at INTEGER NOT NULL,
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL

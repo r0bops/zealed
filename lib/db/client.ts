@@ -15,6 +15,10 @@ export function openDb(path = process.env.DATABASE_PATH ?? "./data/zealed.db"): 
   sqlite.pragma("journal_mode = WAL");
   sqlite.pragma("busy_timeout = 5000");
   sqlite.exec(schema.BOOTSTRAP_SQL);
+  for (const c of schema.ADDED_COLUMNS) {
+    const cols = sqlite.prepare(`PRAGMA table_info(${c.table})`).all() as { name: string }[];
+    if (!cols.some((x) => x.name === c.column)) sqlite.exec(c.ddl);
+  }
   return drizzle(sqlite, { schema }) as DB;
 }
 
