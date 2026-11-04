@@ -27,7 +27,7 @@ export function programStatus(c: Claim, admin = false): ProgramStatus | null {
   const p = publicProgram(c.campaign_id); if (!p) return null;
   const results = db().$client.prepare("SELECT task_id,status,evidence,attempts FROM mission_results WHERE claim_id=?").all(c.id) as TaskResult[];
   const redemption = db().$client.prepare("SELECT * FROM prize_redemptions WHERE claim_id=?").get(c.id) as Redemption | undefined;
-  return { ...p, claimId: c.id, results, eligible: p.tasks.every(t => results.some(r => r.task_id === t.id && r.status === "approved")), redemption: redemption ? { ...redemption, sealed_payload: admin ? null : redemption.sealed_payload } : null, ...(admin ? { buyerKey: c.buyer_key } : {}) };
+  return { ...p, claimId: c.id, results, eligible: p.tasks.every(t => results.some(r => r.task_id === t.id && r.status === "approved")), redemption: redemption ? { ...redemption, sealed_payload: admin ? null : redemption.sealed_payload } : null, ...(admin && redemption?.kind === "custom" ? { buyerKey: c.buyer_key } : {}) };
 }
 function live(c: Claim) {
   if (campaign(c.campaign_id).expires_at <= Date.now()) throw new CampaignError(410, "Campaign expired.");
@@ -49,6 +49,7 @@ export function submitTask(c: Claim, taskId: string, answer?: number, evidence?:
     const current = programStatus(c)!;
     const previous = current.results.find(r => r.task_id === taskId);
     if (previous?.status === "approved") return;
+    if (previous?.status === "pending") throw new CampaignError(409, "Wait for the organizer to review this submission.");
     if (previous && previous.attempts >= 5) throw new CampaignError(429, "Task attempt limit reached.");
     if (current.redemption) throw new CampaignError(409, "Reward already reserved.");
     let status = "pending", proof: string | null = null;
@@ -95,12 +96,17 @@ export function deliverPrize(campaignId: string, data: { txid?: string; sealedPa
   return db().$client.transaction(() => {
     assertProgramEligible(c);
     const r = programStatus(c)?.redemption;
-    if (!r || r.state !== "requested") throw new CampaignError(409, "No reward awaiting fulfillment.");
+    if (!r) throw new CampaignError(409, "No reward awaiting fulfillment.");
+    if (r.state !== "requested") {
+      if ((r.txid ?? undefined) === data.txid && (r.sealed_payload ?? undefined) === data.sealedPayload) return;
+      throw new CampaignError(409, "No reward awaiting fulfillment.");
+    }
     if (r.kind === "zcash") {
       if (!data.txid || !/^[a-f0-9]{64}$/.test(data.txid) || data.sealedPayload) throw new CampaignError(400, "Provide the broadcast transaction ID. It is not confirmation of delivery.");
     } else if (r.kind === "custom") {
       if (!data.sealedPayload || !/^[A-Za-z0-9_-]{65,16000}$/.test(data.sealedPayload) || data.txid) throw new CampaignError(400, "Seal the reward instructions to the participant first.");
     } else throw new CampaignError(400, "Bitrefill rewards use the sponsor payment flow.");
+    if (data.txid && db().$client.prepare("SELECT 1 FROM prize_redemptions WHERE txid=?").get(data.txid)) throw new CampaignError(409, "This transaction is already recorded for another prize.");
     db().$client.prepare("UPDATE prize_redemptions SET state='ready',txid=?,sealed_payload=? WHERE claim_id=?").run(data.txid ?? null, data.sealedPayload ?? null, c.id);
   }).immediate();
 }

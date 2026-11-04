@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 
 const title = "Zealed — private mission rewards";
 const description =
-  "An agent picks a perk that works for you. The sponsor authorises it with a shielded payment, and it's sealed to your browser.";
+  "Complete event missions and choose a gift card, eSIM, testnet Zcash or custom prize. Reward codes are sealed to your browser.";
 
 export const metadata: Metadata = {
   title: { default: title, template: "%s" },

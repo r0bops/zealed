@@ -18,7 +18,7 @@ export async function POST(req: Request) {
   try {
     requireAdmin(req);
     const parsed = campaignInput.safeParse(await readBody(req, 24000));
-    if (!parsed.success) throw new CampaignError(400, "Provide a title, country, budget up to $20 and 1–5 products.");
+    if (!parsed.success) throw new CampaignError(400, "Check the title, country, budget, task answers and prize options. Bitrefill prizes also need allowed products.");
     const products = await Promise.all(parsed.data.productIds.map(id => getProduct(id, true)));
     if (products.some(p => !p || !p.inStock || p.kind === "topup" || !p.packages.some(k => k.priceCents != null && k.priceCents > 0 && k.priceCents <= parsed.data.budgetCents))) {
       throw new CampaignError(400, "Every allowed product needs an available gift-card or eSIM package within the budget.");

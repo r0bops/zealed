@@ -72,6 +72,7 @@ it("requires every task and organizer approval even when APIs are called directl
   expect((await playerPost(req(s.secret, { action: "redeem", prizeId: s.prizes[0].id }), ctx(s.p.id))).status).toBe(403);
   submitTask(s.p, s.tasks[0].id, 1);
   submitTask(s.p, s.tasks[1].id, undefined, "https://example.org/post");
+  expect(() => submitTask(s.p, s.tasks[1].id, undefined, "https://example.org/swapped")).toThrow("review this submission");
   expect(programStatus(s.p)?.eligible).toBe(false);
   expect((await adminPost(req(s.secret, { action: "review", taskId: s.tasks[1].id, approved: true }), ctx(s.c.id))).status).toBe(401);
   expect((await adminPost(req(admin, { action: "review", taskId: s.tasks[1].id, approved: true }), ctx(s.c.id))).status).toBe(200);
@@ -108,6 +109,7 @@ it("locks one prize atomically, tolerates retries and prevents switching to the 
 
 it("restricts Bitrefill selection to the reserved reward type", async () => {
   const s = await eligible(); reservePrize(s.p, s.prizes[2].id);
+  expect(programStatus(s.p, true)).not.toHaveProperty("buyerKey");
   expect(() => assertProgramPurchase(s.p, "esim")).not.toThrow();
   expect(() => assertProgramPurchase(s.p, "giftcard")).toThrow("Select this reward type");
   expect((await selectPost(req(s.secret, { purpose: "gift", days: 7, esimCompatible: true }), ctx(s.p.id))).status).toBe(403);
@@ -129,7 +131,8 @@ it("delivers custom ciphertext only to the claim holder and keeps admin reads fr
   expect(await open(playerData.redemption.sealed_payload, s.key.publicKey, s.key.secretKey)).toBe(plaintext);
   const stranger = await generateKeyPair(); await expect(open(sealedPayload, stranger.publicKey, stranger.secretKey)).rejects.toThrow();
   expect(JSON.stringify(db().$client.prepare("SELECT * FROM prize_redemptions").all())).not.toContain("Synthetic test");
-  expect(() => deliverPrize(s.c.id, { sealedPayload })).toThrow("No reward awaiting");
+  expect(() => deliverPrize(s.c.id, { sealedPayload })).not.toThrow();
+  expect(() => deliverPrize(s.c.id, { sealedPayload: "a".repeat(100) })).toThrow("No reward awaiting");
   acknowledgePrize(s.p); acknowledgePrize(s.p);
   expect(sponsorSummary(campaign(s.c.id))).toMatchObject({ acknowledged: 1, delivered: 0, status: "prize_acknowledged" });
 });

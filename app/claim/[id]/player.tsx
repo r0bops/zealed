@@ -35,7 +35,7 @@ export function PlayerClaim({ campaignId }: { campaignId: string }) {
     return () => { live = false; };
   }, [campaignId, storageKey, reload]);
   useEffect(() => {
-    if (!session?.claimId || !session.secret || !session.publicKey) return;
+    if (invitation?.program || !session?.claimId || !session.secret || !session.publicKey) return;
     let live = true;
     const current = session;
     async function refresh() {
@@ -47,7 +47,7 @@ export function PlayerClaim({ campaignId }: { campaignId: string }) {
     }
     void refresh(); const timer = setInterval(refresh, 3000);
     return () => { live = false; clearInterval(timer); };
-  }, [session]);
+  }, [session, invitation?.program]);
   async function run(action: () => Promise<void>) { setBusy(true); setError(""); try { await action(); } catch (e) { setError((e as Error).message); } finally { setBusy(false); } }
   async function complete(e: FormEvent) {
     e.preventDefault();

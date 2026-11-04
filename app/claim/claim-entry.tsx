@@ -86,8 +86,8 @@ export function ClaimEntry() {
     open(path);
   }
   return <RewardLayout title="Claim a reward" role="claim">
-    <p className="text-muted">Your sponsor shares a private invitation as a QR code or a link. You need no wallet and no account: the reward is sealed to this browser.</p>
-    <Steps label="What happens after you open the invitation" steps={["Mission", "Pick a perk", "Sponsor approves", "Open your reward"]} current={-1} />
+    <p className="text-muted">Open your organizer’s private QR or link, complete every task and choose your prize. No Zealed account needed. Only Zcash prizes require your own testnet wallet.</p>
+    <Steps label="What happens after you open the invitation" steps={["Join", "Complete tasks", "Choose a prize", "Receive reward"]} current={-1} />
     {saved.length > 0 && <section className={panel}>
       <h2 className="text-lg font-semibold">Continue on this browser</h2>
       <ul className="flex flex-col divide-y divide-line">{saved.map(s => <li key={s.id}><Link href={`/claim/${s.id}`} className="flex min-h-11 items-center justify-between gap-3 py-2 text-sm hover:underline"><span>{s.title ?? "Invitation unavailable or expired"}<span className="block font-mono text-xs text-muted">{s.id.slice(0, 8)} · {s.claimed ? "claimed" : "not claimed yet"}</span></span><span aria-hidden>→</span></Link></li>)}</ul>
