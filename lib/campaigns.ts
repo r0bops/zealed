@@ -96,19 +96,30 @@ export function checkChoice(c: Campaign, choice: Choice) {
     throw new CampaignError(403, "Selected reward is outside the campaign policy.");
   }
 }
+/**
+ * An order that expired without any payment can never be paid or fulfilled (the watcher ignores it and
+ * `expired` is terminal), so the claim may be re-approved with a fresh order. Anything else stays bound.
+ */
+export function expiredUnpaid(o: Order | undefined): boolean {
+  return !!o && o.status === "expired" && !o.txid;
+}
 export function reserveSponsoredOrder(campaignId: string, row: typeof import("./db/schema").orders.$inferInsert) {
   return db().$client.transaction(() => {
     const c = campaign(campaignId);
     const player = claimForCampaign(campaignId);
     if (!player || !player.choice) throw new CampaignError(409, "Wait for the player to finish the mission.");
-    if (player.order_id) return getOrder(player.order_id)!;
+    const previous = player.order_id ? getOrder(player.order_id) : undefined;
+    if (player.order_id && !expiredUnpaid(previous)) return previous!;
     if (c.expires_at <= Date.now()) throw new CampaignError(410, "Campaign expired.");
     const chosen = JSON.parse(player.choice) as Choice;
     checkChoice(c, chosen);
-    if (player.state !== "proposed" || row.buyerPubKey !== player.buyer_key || row.productId !== chosen.productId || row.packageValue !== chosen.packageValue || row.priceUsdCents !== chosen.priceCents || row.type !== chosen.kind) {
+    const reapproval = player.state === "ordered" && expiredUnpaid(previous);
+    if ((player.state !== "proposed" && !reapproval) || row.buyerPubKey !== player.buyer_key || row.productId !== chosen.productId || row.packageValue !== chosen.packageValue || row.priceUsdCents !== chosen.priceCents || row.type !== chosen.kind) {
       throw new CampaignError(409, "Reward or recipient changed. Reload before approving.");
     }
-    const order = reserveOrder(row, `reward-claim:${player.id}`, true);
+    // One dedupe key per approval attempt: the first is the claim itself, a retry is keyed to the expired order.
+    const key = reapproval ? `reward-claim:${player.id}:after:${previous!.id}` : `reward-claim:${player.id}`;
+    const order = reserveOrder(row, key, true);
     db().$client.prepare("UPDATE reward_claims SET state='ordered', order_id=?, updated_at=? WHERE id=?").run(order.id, Date.now(), player.id);
     return order;
   }).immediate();

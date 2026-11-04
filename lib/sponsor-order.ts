@@ -1,4 +1,4 @@
-import { campaign, claimForCampaign, CampaignError, checkChoice, reserveSponsoredOrder, type Choice } from "./campaigns";
+import { campaign, claimForCampaign, CampaignError, checkChoice, expiredUnpaid, reserveSponsoredOrder, type Choice } from "./campaigns";
 import { getOrder } from "./orders";
 import { getProduct, priceFor } from "./bitrefill";
 import { priceDriftOk } from "./guardrails";
@@ -9,7 +9,10 @@ import { cartHash } from "./cart";
 
 export async function approveReward(id: string) {
   const c = campaign(id), player = claimForCampaign(id);
-  if (player?.order_id) return getOrder(player.order_id)!;
+  if (player?.order_id) {
+    const bound = getOrder(player.order_id);
+    if (!expiredUnpaid(bound)) return bound!; // re-approve only after the previous request expired unpaid
+  }
   if (!player?.choice) throw new CampaignError(409, "The player has not selected a reward yet.");
   const chosen = JSON.parse(player.choice) as Choice;
   checkChoice(c, chosen);
