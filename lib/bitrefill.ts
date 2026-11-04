@@ -1,4 +1,4 @@
-// Bitrefill REST v2 client. See docs/BITREFILL.md. Only fulfill.ts may call the purchase/order methods.
+// Bitrefill REST v2 client. Only fulfill.ts may call the purchase/order methods.
 // Never log response bodies from createInvoice/getInvoice/getOrder: they can contain redemption codes.
 import { kvGet, kvSet } from "./orders";
 
@@ -21,18 +21,20 @@ export class BitrefillError extends Error {
 
 export interface CatalogPackage {
   value: string; // exactly what buy expects; copy, never retype
-  packageId?: string;
-  priceCents: number | null;
+  packageId?: string; // e.g. "airtel-bundles-india<&>199: ul calls + 2gb data"
+  faceAmount: number | null; // face value in the product's currency (e.g. 199 INR)
+  priceCents: number | null; // our cost in USD cents, null when it can't be priced safely
 }
 export interface CatalogProduct {
   id: string;
   name: string;
   kind: ProductKind;
   country: string | null;
-  currency: string;
+  currency: string; // the product's face-value currency (INR, USD, …)
   inStock: boolean;
   packages: CatalogPackage[];
-  range?: { min: number; max: number; step: number };
+  range?: { min: number; max: number; step: number; priceRate: number | null };
+  accountCurrency: string; // currency Bitrefill prices are expressed in (our balance currency)
 }
 
 export interface RedemptionInfo {
@@ -67,8 +69,29 @@ export interface BitrefillOrder {
 
 export const FINAL_INVOICE_STATUSES = ["complete", "blocked", "denied", "payment_error", "not_delivered"];
 
+/** Catalog source: simulated when there's no API key (or BITREFILL_MODE=fake). */
 export function isSimulated(): boolean {
   return process.env.BITREFILL_MODE === "fake" || !process.env.BITREFILL_API_KEY;
+}
+
+export type PurchaseMode = "simulate" | "test" | "live";
+
+/**
+ * How fulfill.ts buys. Defaults to "simulate"; real money needs BITREFILL_PURCHASES=live explicitly.
+ * "test" sends Bitrefill's free test products instead of the real ones.
+ * A simulated payment can never trigger a real purchase: callers pass paymentSimulated.
+ */
+export function purchaseMode(paymentSimulated: boolean): PurchaseMode {
+  const wanted = (process.env.BITREFILL_PURCHASES ?? "simulate") as PurchaseMode;
+  if (paymentSimulated || isSimulated()) return "simulate";
+  return wanted === "live" || wanted === "test" ? wanted : "simulate";
+}
+
+/** Bitrefill's free test product standing in for a real one in "test" mode (none exists for eSIMs). */
+export function testProductFor(kind: ProductKind): { productId: string; value: string } | null {
+  if (kind === "giftcard") return { productId: "test-gift-card-code", value: "10" };
+  if (kind === "topup") return { productId: "test-phone-refill", value: "10" };
+  return null;
 }
 
 async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -110,38 +133,82 @@ async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
 
 // ---------------------------------------------------------------- catalog (safe for the agent)
 
-function kindOf(p: Record<string, unknown>): ProductKind {
-  const t = String(p.type ?? p.category ?? "").toLowerCase();
+/**
+ * Product kind from Bitrefill's `categories` and `recipient_type`.
+ * Returns null for products checkout can't serve (e.g. DTH, which needs an account number).
+ */
+export function kindOf(p: Record<string, unknown>): ProductKind | null {
+  const cats = (Array.isArray(p.categories) ? p.categories : []).map((c) => String(c).toLowerCase());
+  const recipient = String(p.recipient_type ?? "").toLowerCase();
   const id = String(p.id ?? "").toLowerCase();
-  if (t.includes("esim") || id.includes("esim")) return "esim";
-  if (t.includes("refill") || t.includes("phone") || id.includes("refill") || id.includes("topup")) return "topup";
+  if (cats.includes("esim") || id.includes("esim")) return "esim";
+  if (recipient === "account" || cats.includes("dth")) return null;
+  if (recipient === "phone_number" || id === "test-phone-refill") return "topup";
   return "giftcard";
 }
 
-function normalize(p: Record<string, unknown>): CatalogProduct {
+/**
+ * Bitrefill quotes `price` in the account's balance currency. For a BTC account that's satoshis,
+ * converted at a fixed BTC_USD_RATE (stated in the README, like ZEC_USD_RATE).
+ * Any other currency we don't know how to price returns null, so the product can't be bought.
+ */
+export function priceToCents(price: unknown, accountCurrency: string): number | null {
+  if (typeof price !== "number" || !Number.isFinite(price) || price <= 0) return null;
+  const cur = accountCurrency.toUpperCase();
+  if (cur === "USD") return Math.round(price * 100);
+  if (cur === "BTC") {
+    const rate = Number(process.env.BTC_USD_RATE || 70_000);
+    if (!(rate > 0)) return null;
+    const sats = Number.isInteger(price) ? price : price < 1 ? price * 1e8 : price; // integer = sats; tiny decimal = BTC
+    return Math.max(1, Math.round((sats * rate) / 1_000_000)); // sats / 1e8 * rate * 100
+  }
+  return null;
+}
+
+export function normalize(p: Record<string, unknown>, accountCurrency: string): CatalogProduct | null {
+  const kind = kindOf(p);
+  if (!kind) return null;
   const pkgs = (Array.isArray(p.packages) ? p.packages : []) as Record<string, unknown>[];
-  const range = p.range as { min: number; max: number; step: number } | undefined;
+  const range = p.range as { min: number; max: number; step: number; price_rate?: number } | undefined;
   return {
     id: String(p.id),
     name: String(p.name ?? p.id),
-    kind: kindOf(p),
+    kind,
     country: (p.country_code as string) ?? (p.country as string) ?? null,
     currency: String(p.currency ?? "USD"),
     inStock: p.in_stock !== false,
     packages: pkgs.slice(0, 12).map((k) => ({
       value: String(k.value),
       packageId: (k.package_id as string) ?? (k.id as string) ?? undefined,
-      priceCents: typeof k.price === "number" ? Math.round(k.price * 100) : null,
+      faceAmount: typeof k.amount === "number" ? k.amount : Number.isFinite(Number(k.value)) ? Number(k.value) : null,
+      priceCents: priceToCents(k.price, accountCurrency),
     })),
-    range: range && typeof range.min === "number" ? { min: range.min, max: range.max, step: range.step } : undefined,
+    range:
+      range && typeof range.min === "number"
+        ? { min: range.min, max: range.max, step: range.step, priceRate: typeof range.price_rate === "number" ? range.price_rate : null }
+        : undefined,
+    accountCurrency,
   };
 }
 
 const CATALOG_TTL_MS = 10 * 60_000;
+const CACHE_V = "v2"; // bump when the normalized shape or pricing changes
+
+let accountCurrencyCache: string | null = null;
+/** The currency Bitrefill quotes prices in (our balance currency). Cached; it doesn't change mid-event. */
+export async function accountCurrency(): Promise<string> {
+  if (accountCurrencyCache) return accountCurrencyCache;
+  const cached = kvGet<string>(`bitrefill:${CACHE_V}:account-currency`);
+  if (cached) return (accountCurrencyCache = cached);
+  const bal = await api<{ balance: number; currency: string }>(`/accounts/balance`);
+  accountCurrencyCache = String(bal.currency || "USD").toUpperCase();
+  kvSet(`bitrefill:${CACHE_V}:account-currency`, accountCurrencyCache);
+  return accountCurrencyCache;
+}
 
 export async function searchProducts(query: string, country = "IN"): Promise<CatalogProduct[]> {
   const q = query.trim().slice(0, 80);
-  const cacheKey = `catalog:${country}:${q.toLowerCase()}`;
+  const cacheKey = `catalog:${CACHE_V}:${country}:${q.toLowerCase()}`;
   const cached = kvGet<{ at: number; items: CatalogProduct[] }>(cacheKey);
   if (cached && Date.now() - cached.at < CATALOG_TTL_MS) return cached.items;
 
@@ -152,9 +219,10 @@ export async function searchProducts(query: string, country = "IN"): Promise<Cat
   } else {
     const params = new URLSearchParams({ q, limit: "20" });
     if (process.env.BITREFILL_USE_TEST_PRODUCTS === "true") params.set("include_test_products", "true");
-    const raw = await api<Record<string, unknown>[]>(`/products/search?${params}`);
+    const [raw, cur] = await Promise.all([api<Record<string, unknown>[]>(`/products/search?${params}`), accountCurrency()]);
     items = (Array.isArray(raw) ? raw : [])
-      .map(normalize)
+      .map((p) => normalize(p, cur))
+      .filter((p): p is CatalogProduct => p !== null)
       .filter((p) => !country || !p.country || p.country.toUpperCase() === country || p.id.startsWith("test-"));
   }
   kvSet(cacheKey, { at: Date.now(), items });
@@ -163,11 +231,13 @@ export async function searchProducts(query: string, country = "IN"): Promise<Cat
 
 export async function getProduct(id: string): Promise<CatalogProduct | null> {
   if (isSimulated()) return SIMULATED_CATALOG.find((p) => p.id === id) ?? null;
-  const cacheKey = `product:${id}`;
+  const cacheKey = `product:${CACHE_V}:${id}`;
   const cached = kvGet<{ at: number; item: CatalogProduct }>(cacheKey);
   if (cached && Date.now() - cached.at < CATALOG_TTL_MS) return cached.item;
   try {
-    const item = normalize(await api<Record<string, unknown>>(`/products/${encodeURIComponent(id)}`));
+    const [raw, cur] = await Promise.all([api<Record<string, unknown>>(`/products/${encodeURIComponent(id)}`), accountCurrency()]);
+    const item = normalize(raw, cur);
+    if (!item) return null; // a product kind checkout can't serve
     kvSet(cacheKey, { at: Date.now(), item });
     return item;
   } catch (e) {
@@ -181,9 +251,10 @@ export function priceFor(p: CatalogProduct, value: string): number | null {
   const pkg = p.packages.find((k) => k.value === value);
   if (pkg?.priceCents) return pkg.priceCents;
   if (p.id.startsWith("test-")) return 1; // test products: priced at 1 cent for the demo checkout
-  if (p.range && p.currency === "USD") {
+  if (p.range?.priceRate) {
+    // price_rate is the account-currency price per unit of the product's face currency
     const v = Number(value);
-    if (Number.isFinite(v) && v >= p.range.min && v <= p.range.max) return Math.round(v * 100);
+    if (Number.isFinite(v) && v >= p.range.min && v <= p.range.max) return priceToCents(Math.max(1, Math.round(v * p.range.priceRate)), p.accountCurrency);
   }
   return null;
 }
@@ -203,8 +274,8 @@ export interface CreateInvoiceInput {
   phoneNumber?: string; // E.164
 }
 
-export async function createInvoice(input: CreateInvoiceInput): Promise<BitrefillInvoice> {
-  if (isSimulated()) return simulatedInvoice(input);
+export async function createInvoice(input: CreateInvoiceInput, opts: { simulate: boolean }): Promise<BitrefillInvoice> {
+  if (opts.simulate) return simulatedInvoice(input);
   const item: Record<string, unknown> = { product_id: input.productId, quantity: 1 };
   if (input.packageId) item.package_id = input.packageId;
   else item.value = /^\d+(\.\d+)?$/.test(input.value) ? Number(input.value) : input.value;
@@ -227,16 +298,17 @@ export async function getOrder(id: string): Promise<BitrefillOrder> {
 
 const SIMULATED_CATALOG: CatalogProduct[] = [
   {
-    id: "airtel-india",
-    name: "Airtel India talktime (SIMULATED)",
+    id: "airtel-bundles-india",
+    name: "Airtel Bundles India (SIMULATED)",
     kind: "topup",
     country: "IN",
-    currency: "USD",
+    currency: "INR",
     inStock: true,
     packages: [
-      { value: "10", priceCents: 12 },
-      { value: "50", priceCents: 60 },
+      { value: "199: ul calls + 2gb data", faceAmount: 199, priceCents: 195 },
+      { value: "379:ul calls+2gb/day", faceAmount: 379, priceCents: 372 },
     ],
+    accountCurrency: "USD",
   },
   {
     id: "bitrefill-esim-india",
@@ -245,32 +317,32 @@ const SIMULATED_CATALOG: CatalogProduct[] = [
     country: "IN",
     currency: "USD",
     inStock: true,
-    packages: [{ value: "1GB, 7 Days", priceCents: 388 }],
+    packages: [{ value: "1GB, 7 Days", faceAmount: 2.59, priceCents: 348 }],
+    accountCurrency: "USD",
   },
   {
     id: "flipkart-india",
     name: "Flipkart gift card (SIMULATED)",
     kind: "giftcard",
     country: "IN",
-    currency: "USD",
+    currency: "INR",
     inStock: true,
     packages: [
-      { value: "50", priceCents: 60 },
-      { value: "100", priceCents: 120 },
+      { value: "500", faceAmount: 500, priceCents: 501 },
+      { value: "1000", faceAmount: 1000, priceCents: 1002 },
     ],
+    accountCurrency: "USD",
   },
 ];
 
-const simKinds = new Map<string, ProductKind>();
-
+// Simulated ids carry the product kind so no in-memory state is needed: SIM-<kind>-<rand>.
 function simulatedInvoice(input: CreateInvoiceInput): BitrefillInvoice {
-  const id = `SIM-${crypto.randomUUID().slice(0, 8)}`;
-  simKinds.set(`SIMORD-${id.slice(4)}`, input.kind);
-  return { id, status: "complete", orders: [{ id: `SIMORD-${id.slice(4)}`, status: "delivered" }] };
+  const rand = crypto.randomUUID().slice(0, 8);
+  return { id: `SIM-${input.kind}-${rand}`, status: "complete", orders: [{ id: `SIMORD-${input.kind}-${rand}`, status: "delivered" }] };
 }
 
 function simulatedOrder(id: string): BitrefillOrder {
-  const kind = simKinds.get(id) ?? "giftcard";
+  const kind = (id.split("-")[1] as ProductKind) ?? "giftcard";
   const rand = () => crypto.randomUUID().replace(/-/g, "").slice(0, 4).toUpperCase();
   if (kind === "topup") return { id, status: "delivered" };
   if (kind === "esim")
