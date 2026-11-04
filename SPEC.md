@@ -201,6 +201,7 @@ AGENT_MODEL=
 
 ## Roadmap
 
+- **Sealed gift link over Telegram:** the buyer gets a one-time link to a code sealed in the browser, sends it in any chat, and only the opener can read it; the server deletes the sealed copy after the first open or a timer. Safer variant: the friend opens the link first to create their key, then the code is sealed to it.
 - **Deliver inside the encrypted memo:** send the sealed code in a shielded memo back to the buyer, so no web session is needed.
 - **Network privacy:** route traffic through Nym so Zealed can't see buyers' IP addresses. This counts toward the bonus.
 - **Seller payout escrow:** release the payout after the buyer confirms the code works or a timeout passes. Later, threshold or re-encryption keys so the seller can be offline.
