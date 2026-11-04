@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { importKey, loadKey, orderAccessToken } from "@/lib/keystore";
 import { decodeContent, type SealedContent } from "@/lib/payload";
 import { fingerprint, open } from "@/lib/sodium";
-import { NoirPayButton } from "./noir-pay";
+import { NoirPayButton, PaymentConfirmation } from "./noir-pay";
 import { Chest, Details, ErrorNote, LoadingLine, button, buttonSecondary, field, formatUsd } from "./reward-ui";
 
 interface PublicOrder {
@@ -160,9 +160,10 @@ export function PaymentPanel({ orderId, compact = false, budgetCents, onStatus }
 
       {o.status === "delivered" && <Delivered order={o} />}
 
+      {o.txid && <PaymentConfirmation txid={o.txid} />}
+
       <Details>
         <p>Reward reference {o.id}</p>
-        {o.txid && <a className="underline" href={`https://zexplorer.app/testnet/tx/${o.txid}`} target="_blank" rel="noreferrer">Transaction {o.txid}</a>}
         {o.minedHeight != null && <p>Recorded at block {o.minedHeight}</p>}
         {o.bitrefillOrderId && <p>Invoice {o.bitrefillOrderId}</p>}
         <p className="break-all">Note: {data.memo}</p>

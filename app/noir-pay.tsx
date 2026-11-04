@@ -12,7 +12,20 @@ type State =
   | { kind: "connecting" }
   | { kind: "sending" }
   | { kind: "sent"; txid: string }
-  | { kind: "error"; message: string };
+  | { kind: "error"; message: string; hint?: string };
+
+/** Shown on the main view after a wallet authorisation. The id is truncated; the click copies the full value. */
+export function PaymentConfirmation({ txid }: { txid: string }) {
+  return (
+    <div className="flex flex-col items-start gap-1">
+      <p className="text-base font-medium text-sealed">Authorised ✓</p>
+      <button type="button" className="font-mono text-sm text-foreground underline decoration-muted underline-offset-4" onClick={() => void navigator.clipboard.writeText(txid)}>
+        <span className="sr-only">Copy transaction id </span>{txid.slice(0, 12)}…
+      </button>
+      <a href={`https://zexplorer.app/testnet/tx/${txid}`} target="_blank" rel="noreferrer" className="text-base underline">View on explorer</a>
+    </div>
+  );
+}
 
 export function NoirPayButton({ to, amountZec, memo, simulatedDetection, onSent, variant = "primary" }: { to: string; amountZec: string; memo: string; simulatedDetection: boolean; onSent?: (txid: string) => void; variant?: "primary" | "link" }) {
   const [installed, setInstalled] = useState<boolean | null>(null);
@@ -39,7 +52,11 @@ export function NoirPayButton({ to, amountZec, memo, simulatedDetection, onSent,
       await wallet.zcash.connect();
       const balance = await wallet.zcash.getBalance();
       if (Number(balance.shielded) < Number(amountZec)) {
-        return setState({ kind: "error", message: "Your wallet doesn’t have enough testnet funds to authorise this." });
+        return setState({
+          kind: "error",
+          message: "Your wallet doesn’t have enough testnet funds to authorise this.",
+          hint: `This needs ${amountZec} TAZ. This wallet has ${balance.shielded} TAZ. Get testnet coins from a faucet first.`,
+        });
       }
       setState({ kind: "sending" });
       const txid = await wallet.zcash.sendTransaction({ to, amount: amountZec, memo, fundingSource: "shielded" });
@@ -64,15 +81,7 @@ export function NoirPayButton({ to, amountZec, memo, simulatedDetection, onSent,
     );
   if (installed === null) return null;
 
-  if (state.kind === "sent")
-    return (
-      <div className="flex flex-col gap-2">
-        <p className="rounded-lg border border-sealed/40 px-3 py-2 text-base text-sealed">Sent from your wallet. Waiting for it to be approved privately with Zcash.</p>
-        <Details>
-          <a href={`https://zexplorer.app/testnet/tx/${state.txid}`} target="_blank" rel="noreferrer" className="underline">Transaction {state.txid}</a>
-        </Details>
-      </div>
-    );
+  if (state.kind === "sent") return <PaymentConfirmation txid={state.txid} />;
 
   const busy = state.kind === "connecting" || state.kind === "sending";
   const label = state.kind === "connecting" ? "Connecting to your wallet…" : state.kind === "sending" ? "Approve this in your wallet…" : "Authorise with your wallet";
@@ -93,6 +102,7 @@ export function NoirPayButton({ to, amountZec, memo, simulatedDetection, onSent,
         {simulatedDetection && " Detection on this demo is simulated."}
       </p>
       {state.kind === "error" && <p className="text-base text-danger">{state.message}</p>}
+      {state.kind === "error" && state.hint && <Details><p>{state.hint}</p></Details>}
     </div>
   );
 }

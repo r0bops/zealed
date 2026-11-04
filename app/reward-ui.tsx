@@ -70,7 +70,7 @@ export function Chest({ open }: { open: boolean }) {
   return (
     <div className={open ? "chest-open mx-auto w-24" : "mx-auto w-24"} aria-hidden>
       <svg viewBox="0 0 80 64" className="h-20 w-24">
-        <path className="chest-lid" d="M10 30 V24 Q40 6 70 24 V30 Z" fill={open ? "#6FBF8E" : "#C8921A"} />
+        <path className="chest-lid" d="M10 30 V24 Q40 6 70 24 V30 Z" fill={open ? "#6FBF8E" : "#F4B728"} fillOpacity={open ? 1 : 0.72} />
         <rect x="8" y="28" width="64" height="28" rx="4" fill="#F4B728" />
         <rect x="36" y="36" width="8" height="10" rx="2" fill="#0A0A0A" />
       </svg>

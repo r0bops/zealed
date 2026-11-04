@@ -13,7 +13,7 @@ function pillFor(status?: string): { label: string; className: string } | null {
   if (status === "delivered") return { label: "Delivered ✓", className: "bg-sealed/15 text-sealed" };
   if (status === "paid" || status === "fulfilling" || status === "payment_seen") return { label: "Approved", className: "bg-accent/15 text-accent" };
   if (status === "failed" || status === "failed_uncertain") return { label: "Needs attention", className: "bg-danger/15 text-danger" };
-  return { label: "Pending", className: "bg-[#E08A3C]/15 text-[#E08A3C]" };
+  return { label: "Pending", className: "bg-muted/15 text-muted" };
 }
 
 export function OrderHistory({ active }: { active: boolean }) {
