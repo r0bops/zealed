@@ -72,7 +72,7 @@ export default function Home() {
 
       <nav aria-label="Shopping" className="flex flex-wrap items-center gap-3">
         <Link href="/chat" className="inline-flex min-h-11 items-center rounded-xl bg-foreground px-5 py-3 font-medium text-background focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent">Start shopping</Link>
-        <Link href="/orders" className="inline-flex min-h-11 items-center rounded-xl border border-line px-5 py-3 font-medium focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent">My orders</Link>
+        <Link href="/chat?view=orders" className="inline-flex min-h-11 items-center rounded-xl border border-line px-5 py-3 font-medium focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent">My orders</Link>
       </nav>
     </main>
   );
