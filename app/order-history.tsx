@@ -1,10 +1,11 @@
 "use client";
 
-import { PaymentPanel } from "./checkout";
+import Link from "next/link";
+import { PaymentPanel } from "./order-details";
 import { useEffect, useState } from "react";
 import { rememberedOrderIds } from "@/lib/keystore";
 
-export function OrderHistory({ active, onShop }: { active: boolean; onShop: () => void }) {
+export function OrderHistory({ active }: { active: boolean }) {
   const [selected, setSelected] = useState<string | null>(null);
   const [orders, setOrders] = useState<string[]>([]);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
@@ -26,7 +27,7 @@ export function OrderHistory({ active, onShop }: { active: boolean; onShop: () =
     <section aria-label="My orders" className="flex flex-col gap-5">
       <header className="space-y-2">
         <h2 className="text-xl font-semibold">My orders</h2>
-        <p className="text-sm text-muted">Purchases remembered on this browser. Clearing a conversation leaves these links and your decryption keys intact. Clearing browser storage removes them; keep your order link and key backup.</p>
+        <p className="text-sm text-muted">Rewards and earlier purchases remembered on this browser. Clearing browser storage removes these links and your decryption keys. Reward recovery also requires the claim access saved on this device.</p>
       </header>
       {state === "loading" && <p role="status">Loading orders from this browser…</p>}
       {state === "error" && <div role="alert" className="space-y-3 rounded-xl border border-line p-5">
@@ -35,7 +36,7 @@ export function OrderHistory({ active, onShop }: { active: boolean; onShop: () =
       </div>}
       {state === "ready" && !orders.length && <div className="space-y-3 rounded-xl border border-line p-6">
         <p>No orders saved in this browser yet.</p>
-        <button type="button" onClick={onShop} className="inline-flex min-h-11 items-center rounded-lg bg-foreground px-4 text-background focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">Start shopping</button>
+        <Link href="/claim" className="inline-flex min-h-11 items-center rounded-lg bg-foreground px-4 text-background focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">Open a reward invitation</Link>
       </div>}
       {state === "ready" && orders.length > 0 && <ul className="divide-y divide-line rounded-xl border border-line bg-surface">
         {orders.map((id) => <li key={id}><button type="button" onClick={() => setSelected(id)} className="flex w-full text-left min-h-16 flex-wrap items-center justify-between gap-2 p-4 focus-visible:outline-2 focus-visible:outline-accent">
