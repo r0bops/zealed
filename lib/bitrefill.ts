@@ -383,6 +383,7 @@ const SIMULATED_CATALOG: CatalogProduct[] = [
     currency: "INR",
     inStock: true,
     packages: [
+      { value: "50", faceAmount: 50, priceCents: 56 },
       { value: "500", faceAmount: 500, priceCents: 501 },
       { value: "1000", faceAmount: 1000, priceCents: 1002 },
     ],

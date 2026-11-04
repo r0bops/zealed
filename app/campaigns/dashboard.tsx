@@ -9,6 +9,7 @@ import { ProgramBuilder, initialProgram } from "../program-builder";
 import { ProgramAdmin } from "../program-admin";
 import { taskProblem, programInput, type ProgramInput, type PublicProgram } from "@/lib/program-schema";
 import { Icon } from "../ui-icon";
+import { presetProductIds } from "../prize-presets";
 type Summary = { program?: PublicProgram; acknowledged?: number; id: string; title: string; expiresAt?: number; budgetCents: number; country: string; claimed: number; delivered: number; reservedCents: number; deliveredCents: number; status: string; choice: Choice | null };
 type Listing = { campaigns: Summary[]; simulatedCatalog: boolean; purchaseMode: string; openSponsor?: boolean; maxBudgetCents?: number };
 // The anonymous sponsor key for this browser. The server stores only its hash.
@@ -41,10 +42,12 @@ export function CampaignDashboard() {
   const [campaignQuery, setCampaignQuery] = useState("");
   const [program, setProgram] = useState<ProgramInput>(initialProgram);
   const needsCatalog = program.prizes.some(p => p.kind === "giftcard" || p.kind === "esim");
+  const [customCatalog, setCustomCatalog] = useState(false);
   const [token, setToken] = useState(""), [login, setLogin] = useState("");
   const [data, setData] = useState<Listing | null>(null), [error, setError] = useState("");
   const [title, setTitle] = useState("Welcome to the community"), [country, setCountry] = useState("IN"), [budget, setBudget] = useState("5.00");
   const [query, setQuery] = useState("esim"), [products, setProducts] = useState<CatalogProduct[]>([]), [selected, setSelected] = useState<string[]>([]);
+  const allowedProducts = customCatalog ? selected : presetProductIds(program);
   const [searched, setSearched] = useState(false), [eligibility, setEligibility] = useState(false), [busy, setBusy] = useState(false);
   const [invite, setInvite] = useState(""), [payment, setPayment] = useState<Payment | null>(null), [payCampaign, setPayCampaign] = useState("");
   const [presenting, setPresenting] = useState<"" | "invite" | "payment">("");
@@ -95,11 +98,12 @@ export function CampaignDashboard() {
   async function createInvitation() {
     if (!programInput.safeParse(program).success) throw new Error("Complete every mission and prize description before creating the invitation.");
     if (!/^\d{1,2}(\.\d{1,2})?$/.test(budget) || Number(budget) <= 0 || Math.round(Number(budget) * 100) > budgetLimit) throw new Error(`Enter a budget between $0.01 and $${(budgetLimit / 100).toFixed(2)}.`);
-    const d = await request<{ id: string; token: string }>("/api/campaigns", token, { title, country, budgetCents: Math.round(Number(budget) * 100), productIds: needsCatalog ? selected : [], program });
+    if (needsCatalog && (!allowedProducts.length || !eligibility)) throw new Error("Confirm the prize restrictions before creating your invitation.");
+    const d = await request<{ id: string; token: string }>("/api/campaigns", token, { title, country: customCatalog ? country : "IN", budgetCents: Math.round(Number(budget) * 100), productIds: needsCatalog ? allowedProducts : [], program });
     const invitations = { ...savedInvites, [d.id]: d.token };
     setSavedInvites(invitations);
     try { localStorage.setItem(INVITES_STORAGE, JSON.stringify(invitations)); } catch { /* keep in memory and offer Copy */ }
-    setProgram(structuredClone(initialProgram)); setTitle("Welcome to the community"); setStep(0); setSelected([]); setProducts([]); setSearched(false); setEligibility(false);
+    setProgram(structuredClone(initialProgram)); setTitle("Welcome to the community"); setStep(0); setSelected([]); setProducts([]); setSearched(false); setEligibility(false); setCustomCatalog(false); setCountry("IN");
     setInvite(`${location.origin}/claim/${d.id}#${d.token}`); setData(await request<Listing>("/api/campaigns", token)); setView("manage");
   }
   const campaigns = data?.campaigns.filter(c => c.title.toLowerCase().includes(campaignQuery.toLowerCase())) ?? [];
@@ -144,9 +148,15 @@ export function CampaignDashboard() {
           </>}
           {step === 1 && <ProgramBuilder value={program} onChange={setProgram} section="missions" />}
           {step === 2 && <>
-            <ProgramBuilder value={program} onChange={setProgram} section="prizes" />
+            <ProgramBuilder value={program} onChange={p => { setProgram(p); setEligibility(false); }} section="prizes" presets={!customCatalog} />
             {needsCatalog && <section className="workspace-stack border-t border-line pt-6" aria-label="Bitrefill product eligibility">
-              <div><h3 className="text-lg">Choose eligible Bitrefill products</h3><p className="workspace-note mt-2">The agent selects from your allowlist. Include at least one product for each Bitrefill prize type you offer.</p></div>
+              <div><h3 className="text-lg">{customCatalog ? "Your Bitrefill selection" : "Ready for the India demo"}</h3><p className="workspace-note mt-2">{customCatalog ? "Choose at least one product for each Bitrefill prize type." : "Products are already selected. The agent picks a package within your budget; you approve it before paying."}</p></div>
+              {!customCatalog && <label className="flex flex-col gap-2">Maximum spend per Bitrefill prize (USD)<input className={field} inputMode="decimal" value={budget} onChange={e => setBudget(e.target.value)} /><span className="workspace-note">Up to ${(budgetLimit / 100).toFixed(2)}. {data?.purchaseMode === "test" ? "Delivery uses Bitrefill test products, not redeemable cards or mobile data." : data?.purchaseMode === "simulate" ? "This environment simulates delivery." : "Availability and the exact price are checked before purchase."}</span></label>}
+              <label className="workspace-choice"><input type="checkbox" checked={eligibility} onChange={e => setEligibility(e.target.checked)} /><span className="text-sm">{!customCatalog && data?.purchaseMode === "test" ? "I understand these are demo rewards: Bitrefill delivers test codes, not usable gift cards or eSIMs." : `I checked ${customCatalog ? "coverage" : "India coverage"}, account requirements and redemption restrictions for the participant.`}</span></label>
+              <details onToggle={e => { if (e.currentTarget.open) setError(""); }}>
+                <summary className="min-h-11 cursor-pointer py-3 text-sm text-muted">Advanced: choose different products or country</summary>
+                <div className="workspace-stack pt-4"><label className="workspace-choice"><input type="checkbox" checked={customCatalog} onChange={e => { setCustomCatalog(e.target.checked); setEligibility(false); }} /><span className="text-sm">Use my own catalog selection</span></label>
+                {customCatalog && <>
               <div className="grid gap-4 sm:grid-cols-2"><label className="flex flex-col gap-2">Country code<input className={field} value={country} maxLength={2} autoComplete="country" onChange={e => { setCountry(e.target.value.toUpperCase()); setSelected([]); setProducts([]); setEligibility(false); }} placeholder="IN" /></label><label className="flex flex-col gap-2">Maximum spend (USD)<input className={field} inputMode="decimal" value={budget} onChange={e => setBudget(e.target.value)} /><span className="workspace-note">Up to ${(budgetLimit / 100).toFixed(2)} per reward.</span></label></div>
               <form onSubmit={e => { e.preventDefault(); void run(async () => { const d = await request<{ products: CatalogProduct[] }>(`/api/campaigns/catalog?q=${encodeURIComponent(query)}&country=${encodeURIComponent(country)}`, token); setProducts(d.products); setKnownProducts(all => ({ ...all, ...Object.fromEntries(d.products.map(p => [p.id, p])) })); setSearched(true); }); }} className="flex flex-col gap-3">
                 <label className="flex flex-col gap-2">Search the catalog<input type="search" className={field} value={query} minLength={2} maxLength={60} required onChange={e => setQuery(e.target.value)} placeholder="eSIM, gift card or brand" /></label><button disabled={busy} className={buttonSecondary}>{busy ? "Searching…" : "Search catalog"}</button>
@@ -154,11 +164,13 @@ export function CampaignDashboard() {
               {searched && !products.length && <p role="status" className="workspace-note">No products found. Try a different search or country.</p>}
               {products.length > 0 && <fieldset className="space-y-3"><legend className="mb-3 text-sm">Select up to five products</legend>{products.map(p => <label key={p.id} className="workspace-choice"><input type="checkbox" checked={selected.includes(p.id)} disabled={!selected.includes(p.id) && selected.length >= 5} onChange={e => { setSelected(ids => e.target.checked ? [...ids, p.id].slice(0, 5) : ids.filter(id => id !== p.id)); setEligibility(false); }} /><span className="text-sm">{p.name}<span className="block text-xs text-muted">{p.kind === "esim" ? "eSIM" : "Gift card"} · {p.country ?? "Check regional eligibility"}</span></span></label>)}</fieldset>}
               {selected.length > 0 && <div className="space-y-2"><p className="workspace-note">{selected.length}/5 allowed products</p>{selected.map(id => <div key={id} className="flex items-center justify-between gap-2 border-b border-line text-sm"><span>{knownProducts[id]?.name ?? id}</span><button type="button" aria-label={`Remove ${knownProducts[id]?.name ?? id}`} className="flex min-h-11 min-w-11 items-center justify-center" onClick={() => { setSelected(ids => ids.filter(x => x !== id)); setEligibility(false); }}><Icon name="close" width={16} /></button></div>)}</div>}
-              <label className="workspace-choice"><input type="checkbox" checked={eligibility} onChange={e => setEligibility(e.target.checked)} /><span className="text-sm">I checked coverage, account requirements and redemption restrictions. Catalog inclusion alone does not prove eligibility.</span></label>
+                </>}
+                </div>
+              </details>
             </section>}
             <p className="workspace-note">Requirements and prize options are locked after creation. You can review submissions and fulfill the chosen prize afterward.</p>
           </>}
-          <div className="workspace-form-actions">{step > 0 ? <button className={buttonSecondary} disabled={busy} onClick={() => moveStep(step - 1)}>Back</button> : <span className="workspace-note">Step 1 of 3</span>}{step < 2 ? <button className={button} onClick={() => moveStep(step + 1)}>Continue<Icon name="arrow" /></button> : <button disabled={busy || !program.prizes.length || (needsCatalog && (!selected.length || !eligibility))} className={button} onClick={() => void run(createInvitation)}>{busy ? "Creating invitation…" : "Create one-use invitation"}<Icon name="arrow" /></button>}</div>
+          <div className="workspace-form-actions">{step > 0 ? <button className={buttonSecondary} disabled={busy} onClick={() => moveStep(step - 1)}>Back</button> : <span className="workspace-note">Step 1 of 3</span>}{step < 2 ? <button className={button} onClick={() => moveStep(step + 1)}>Continue<Icon name="arrow" /></button> : <button disabled={busy || !data || !program.prizes.length || (needsCatalog && (!allowedProducts.length || !eligibility))} className={button} onClick={() => void run(createInvitation)}>{busy ? "Checking prizes & creating…" : "Create one-use invitation"}<Icon name="arrow" /></button>}</div>
         </section>
         <aside className="workspace-aside"><div className={panel}><Icon name="gift" className="text-accent" width={28} height={28} /><h2>{title.trim() || "Your campaign"}</h2><dl className="workspace-summary"><dt>Required missions</dt><dd>{program.tasks.length}</dd><dt>Prize options</dt><dd>{program.prizes.length}</dd><dt>Participants</dt><dd>1 per invitation</dd><dt>Claim window</dt><dd>24 hours</dd>{needsCatalog && <><dt>Bitrefill budget</dt><dd>${Number(budget || 0).toFixed(2)}</dd></>}</dl></div><p className="workspace-note flex gap-3"><Icon name="lock" className="shrink-0" />No deposit is held. You authorize Bitrefill purchases individually and fulfill custom or Zcash prizes yourself.</p></aside>
       </div> : <>

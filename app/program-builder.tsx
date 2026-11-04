@@ -2,9 +2,11 @@
 import { field, buttonSecondary } from "./reward-ui";
 import { Icon, type IconName } from "./ui-icon";
 import { SOCIAL_PLATFORMS, type ProgramInput, type SocialPlatform, type TaskInput } from "@/lib/program-schema";
+import { useState } from "react";
+import { PRIZE_PRESETS } from "./prize-presets";
 export const initialProgram: ProgramInput = {
   tasks: [{ kind: "quiz", title: "When should Zealed release a reward?", options: ["After broadcast", "After the exact payment is confirmed"], answer: 1 }],
-  prizes: [{ kind: "esim", title: "Mobile data eSIM" }],
+  prizes: [{ kind: "giftcard", title: "Gift card" }, { kind: "esim", title: "Mobile data eSIM" }, { kind: "zcash", title: "Zcash prize", amountZat: 1_000_000 }],
 };
 const social = (platform: SocialPlatform, title: string, instructions: string): TaskInput => ({ kind: "social", platform, title, instructions, target: "" });
 /** Event-themed starting points. Every field stays editable after it's added. */
@@ -37,7 +39,16 @@ const TEMPLATES: { group: string; icon: IconName; items: { label: string; task: 
   ] },
 ];
 const kindLabel = (t: TaskInput) => t.kind === "quiz" ? "Quiz · checked instantly" : t.kind === "code" ? "Secret code · checked instantly" : t.kind === "social" ? `${SOCIAL_PLATFORMS[t.platform ?? "other"].label} · you review the evidence` : "Custom task · you review the evidence";
-export function ProgramBuilder({ value, onChange, section }: { value: ProgramInput; onChange: (v: ProgramInput) => void; section?: "missions" | "prizes" }) {
+function ZcashAmount({ amountZat, onChange }: { amountZat: number; onChange: (n: number) => void }) {
+  const [amount, setAmount] = useState(String(amountZat / 1e8));
+  function update(v: string) {
+    setAmount(v);
+    onChange(/^\d+(\.\d{0,8})?$/.test(v) ? Math.round(Number(v) * 1e8) : 0);
+  }
+  return <div className="space-y-3"><label className="block space-y-2"><span>Prize amount (TAZ)</span><input className={field} type="text" inputMode="decimal" value={amount} onChange={e => update(e.target.value)} aria-invalid={!Number.isSafeInteger(amountZat) || amountZat < 1 || amountZat > 1e8} /></label><div className="flex flex-wrap gap-2">{["0.001", "0.01", "0.1"].map(n => <button key={n} type="button" className={buttonSecondary} aria-pressed={Number(amount) === Number(n)} onClick={() => update(n)}>{n} TAZ</button>)}</div><p className="workspace-note">Testnet coins only. Maximum 1 TAZ.</p></div>;
+}
+
+export function ProgramBuilder({ value, onChange, section, presets = false }: { value: ProgramInput; onChange: (v: ProgramInput) => void; section?: "missions" | "prizes"; presets?: boolean }) {
   const update = (i: number, patch: Partial<TaskInput>) => onChange({ ...value, tasks: value.tasks.map((t, j) => i === j ? { ...t, ...patch } as typeof t : t) });
   const full = value.tasks.length >= 10;
   return <div className="space-y-6">
@@ -60,8 +71,11 @@ export function ProgramBuilder({ value, onChange, section }: { value: ProgramInp
     {(["giftcard", "esim", "zcash", "custom"] as const).map(kind => {
       const prize = value.prizes.find(p => p.kind === kind);
       const change = (patch: object) => onChange({ ...value, prizes: value.prizes.map(p => p.kind === kind ? { ...p, ...patch } : p) });
-      return <fieldset key={kind} className="min-w-0"><label className="workspace-choice workspace-prize-option"><Icon name={kind === "zcash" ? "wallet" : kind === "esim" ? "globe" : "gift"} /><input type="checkbox" checked={!!prize} onChange={e => onChange({ ...value, prizes: e.target.checked ? [...value.prizes, kind === "zcash" ? { kind, title: "Zcash testnet prize", amountZat: 1000000 } : kind === "custom" ? { kind, title: "Event reward", description: "Organizer-managed reward" } : { kind, title: kind === "esim" ? "Mobile data eSIM" : "Gift card" }] : value.prizes.filter(p => p.kind !== kind) })} /><span className="font-medium">{kind === "zcash" ? "Zcash · testnet TAZ" : kind === "giftcard" ? "Bitrefill gift card" : kind === "esim" ? "Bitrefill eSIM" : "Custom reward"}</span></label>
-        {prize && <div className="workspace-prize-config"><label className="block space-y-2"><span>Prize name</span><input className={field} maxLength={240} value={prize.title} onChange={e => change({ title: e.target.value })} /></label>{prize.kind === "zcash" && <label className="block space-y-2"><span>Amount in zatoshis (100,000,000 = 1 TAZ; maximum 1 TAZ)</span><input className={field} type="number" min={1} max={100000000} step={1} value={prize.amountZat} onChange={e => change({ amountZat: Number(e.target.value) })} /></label>}{prize.kind === "custom" && <label className="block space-y-2"><span>Public description · no private codes</span><textarea className={field} maxLength={240} value={prize.description} onChange={e => change({ description: e.target.value })} /></label>}</div>}
+      return <fieldset key={kind} className="min-w-0"><label className="workspace-choice workspace-prize-option"><Icon name={kind === "zcash" ? "wallet" : kind === "esim" ? "globe" : "gift"} /><input type="checkbox" checked={!!prize} onChange={e => onChange({ ...value, prizes: e.target.checked ? [...value.prizes, kind === "zcash" ? { kind, title: "Zcash prize", amountZat: 1000000 } : kind === "custom" ? { kind, title: "Event reward", description: "Organizer-managed reward" } : { kind, title: PRIZE_PRESETS[kind].title }] : value.prizes.filter(p => p.kind !== kind) })} /><span><span className="block font-medium">{PRIZE_PRESETS[kind].title}</span><span className="mt-1 block text-xs text-muted">{kind === "zcash" ? "Send directly to the participant’s testnet wallet" : presets || kind === "custom" ? PRIZE_PRESETS[kind].description : "Choose products in the catalog below"}</span></span></label>
+        {prize && <div className="workspace-prize-config">
+          {prize.kind === "zcash" && <ZcashAmount amountZat={prize.amountZat} onChange={amountZat => change({ amountZat })} />}
+          <details open={prize.kind === "custom" ? true : undefined}><summary className="min-h-11 cursor-pointer py-3 text-sm text-muted">{prize.kind === "custom" ? "Reward details" : "Edit prize name"}</summary><label className="block space-y-2"><span>Prize name</span><input className={field} maxLength={240} value={prize.title} onChange={e => change({ title: e.target.value })} /></label>{prize.kind === "custom" && <label className="mt-4 block space-y-2"><span>Public description · no private codes</span><textarea className={field} maxLength={240} value={prize.description} onChange={e => change({ description: e.target.value })} /></label>}</details>
+        </div>}
       </fieldset>;
     })}</>}
   </div>;
