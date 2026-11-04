@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { eventMetadata } from "./chat-privacy";
+import { eventMetadata } from "./event-metadata";
 import { evaluateGuardrails, limitsFromEnv } from "./guardrails";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { db, schema } from "./db/client";
@@ -72,7 +72,7 @@ export class ReservationError extends Error {
   constructor(readonly status: number, message: string) { super(message); }
 }
 
-/** Single SQLite write transaction covers proposal replay, budget reservation and order insertion. */
+/** Single SQLite write transaction covers authorization replay, budget reservation and order insertion. */
 export function reserveOrder(row: typeof orders.$inferInsert, usedKey: string, approved: boolean): Order {
   return db().$client.transaction(() => {
     if (kvGet(usedKey)) throw new ReservationError(409, "This checkout was already used.");
@@ -96,6 +96,36 @@ export function claimFulfillment(id: string, mode: string): boolean {
     db().$client.prepare(`INSERT INTO spend_reservations(order_id,amount_cents,charged_at) VALUES (?,?,?)
       ON CONFLICT(order_id) DO UPDATE SET amount_cents=excluded.amount_cents,charged_at=excluded.charged_at`).run(id, order.priceUsdCents, now());
     return true;
+  }).immediate();
+}
+
+/** Reprice the reservation before the irreversible purchase, without changing the approved cart. */
+export function reserveFulfillmentCost(id: string, costCents: number): boolean {
+  return db().$client.transaction(() => {
+    const order = getOrder(id);
+    if (!order || order.status !== "fulfilling") return false;
+    const decision = evaluateGuardrails({ priceCents: costCents, spentTodayCents: agentSpentTodayCents(id), limits: limitsFromEnv() });
+    if (decision.verdict === "BLOCK" || (decision.verdict === "REQUIRE_HUMAN" && !order.approvedAt)) return false;
+    const campaign = db().$client.prepare(`SELECT c.budget_cents FROM campaigns c
+      JOIN reward_claims r ON r.campaign_id=c.id WHERE r.order_id=?`).get(id) as { budget_cents: number } | undefined;
+    if (campaign && costCents > campaign.budget_cents) return false;
+    db().$client.prepare("UPDATE spend_reservations SET amount_cents=? WHERE order_id=?").run(costCents, id);
+    return true;
+  }).immediate();
+}
+
+/** A crashed purchase must only be reconciled, never submitted again. Allow ten minutes for a live worker. */
+export function recoverStaleFulfillments(active: ReadonlySet<string>, cutoff = now() - 10 * 60_000) {
+  return db().$client.transaction(() => {
+    let recovered = 0;
+    for (const order of ordersInStatus(["fulfilling"])) {
+      if (active.has(order.id) || order.updatedAt > cutoff) continue;
+      if (transition(order.id, "fulfilling", "failed_uncertain", {
+        failure: "Purchase interrupted; reconcile before retrying",
+        ...(order.type === "topup" ? { sealedPhone: null, wipedAt: now() } : {}),
+      })) recovered++;
+    }
+    return recovered;
   }).immediate();
 }
 

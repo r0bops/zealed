@@ -19,7 +19,7 @@ import { cartHash } from "./cart";
 import type { Order } from "./db/schema";
 import { fulfillKeyPair } from "./fulfill-key";
 import { log, safeError } from "./log";
-import { getOrder as getDbOrder, patchOrder, transition, claimFulfillment } from "./orders";
+import { getOrder as getDbOrder, patchOrder, transition, claimFulfillment, reserveFulfillmentCost } from "./orders";
 import { limitsFromEnv, priceDriftOk } from "./guardrails";
 import { encodeContent, type SealedContent } from "./payload";
 import { open, seal } from "./sodium";
@@ -56,7 +56,7 @@ export async function fulfillOrder(orderId: string): Promise<FulfillResult> {
   }
 
   const backend = await zcash();
-  const mode = purchaseMode(backend.simulated);
+  const mode = purchaseMode(backend.simulated || order.txid?.startsWith("SIMULATED-") === true);
   // Reserve the purchase before calling Bitrefill, so a crash or replay can never buy twice.
   if (!claimFulfillment(order.id, mode)) return { status: "skipped" };
 
@@ -65,10 +65,12 @@ export async function fulfillOrder(orderId: string): Promise<FulfillResult> {
     const kind = order.type as ProductKind;
     if (mode === "live") {
       const current = await getProduct(order.productId ?? "", true);
+      const cost = current ? priceFor(current, order.packageValue ?? "") : null;
       // Live cost may drift with the BTC/USD rate since checkout: allow a little, never above the per-order cap.
-      if (!current || current.kind !== kind || !priceDriftOk(priceFor(current, order.packageValue ?? ""), order.priceUsdCents, limitsFromEnv().approvalLimitCents)) {
+      if (!current || current.kind !== kind || !priceDriftOk(cost, order.priceUsdCents, limitsFromEnv().approvalLimitCents)) {
         return finish(order, "failed", { failure: "Product availability or price changed; request a new quote" });
       }
+      if (!reserveFulfillmentCost(order.id, cost!)) return finish(order, "failed", { failure: "Current cost exceeds the campaign budget, daily cap or approval limit" });
     }
     if (kind === "topup") {
       if (!order.sealedPhone) return finish(order, "failed", { failure: "no sealed phone number" });
@@ -178,7 +180,12 @@ function toSealedContent(kind: ProductKind, info: string | RedemptionInfo | unde
   const note = mode === "simulate" ? "SIMULATED: not a real code." : mode === "test" ? "Bitrefill TEST product: not redeemable." : undefined;
   if (kind === "topup") return { kind: "topup", delivered: true };
   const r: RedemptionInfo = typeof info === "string" ? { code: info } : (info ?? {});
-  if (kind === "esim" && r.barcode_value) return { kind: "esim", lpa: r.barcode_value, instructions: note ?? r.instructions };
+  const present = (value: unknown): value is string => typeof value === "string" && value.trim().length > 0;
+  if (kind === "esim") {
+    if (!present(r.barcode_value)) throw new Error("Missing eSIM activation payload");
+    return { kind: "esim", lpa: r.barcode_value, instructions: note ?? r.instructions };
+  }
+  if (!present(r.code) && !present(r.link)) throw new Error("Missing gift card redemption payload");
   return { kind: "giftcard", code: r.code, pin: r.pin, link: r.link, instructions: note ?? r.instructions };
 }
 

@@ -81,7 +81,12 @@ export async function isPublicKey(value: unknown): Promise<boolean> {
   if (typeof value !== "string") return false;
   await ready();
   try {
-    return fromB64(value).length === sodium.crypto_box_PUBLICKEYBYTES;
+    const key = fromB64(value);
+    if (key.length !== sodium.crypto_box_PUBLICKEYBYTES) return false;
+    // Length alone accepts low-order points which cannot receive a sealed box.
+    const shared = sodium.crypto_scalarmult(new Uint8Array(32).fill(1), key);
+    sodium.memzero(shared);
+    return true;
   } catch {
     return false;
   }

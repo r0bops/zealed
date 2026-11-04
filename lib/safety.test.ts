@@ -3,13 +3,14 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { db } from "./db/client";
-import { eventMetadata, looksSensitive, validateChatMessages } from "./chat-privacy";
+import { eventMetadata } from "./event-metadata";
 import { redact, safeError } from "./log";
 import { accountCurrency, getProduct, isSimulated, priceFor, searchProducts, type CatalogProduct } from "./bitrefill";
-import { agentSpentTodayCents, claimFulfillment, getOrder, insertOrder, kvGet, logAgentEvent, reserveOrder } from "./orders";
+import { agentSpentTodayCents, claimFulfillment, getOrder, insertOrder, kvGet, logAgentEvent, reserveOrder, reserveFulfillmentCost, recoverStaleFulfillments } from "./orders";
 import { fakeBackend, simulatePayment, zcash, type Receipt } from "./zcash";
 import { tick } from "../worker/watcher";
-import { fulfillOrder } from "./fulfill";
+import { fulfillOrder, reconcileOrder } from "./fulfill";
+import * as bitrefill from "./bitrefill";
 import { generateKeyPair, open } from "./sodium";
 
 let dir: string;
@@ -42,22 +43,6 @@ function row(id: string, priceUsdCents = 400) {
 }
 
 describe("privacy boundaries", () => {
-  it("rejects sensitive text in earlier messages and malformed/system input", () => {
-    const user = (text: string) => ({ id: "u", role: "user", parts: [{ type: "text", text }] });
-    expect(() => validateChatMessages([user("my phone number is +1 (202) 555-0199"), user("hello")])).toThrow();
-    expect(() => validateChatMessages([user("my seed phrase is synthetic words here")])).toThrow();
-    expect(() => validateChatMessages([{ ...user("hi"), role: "system" }])).toThrow();
-    expect(() => validateChatMessages([{ ...user("hi"), parts: null }])).toThrow();
-    expect(validateChatMessages([user("Find a 500 rupee gift card")])).toHaveLength(1);
-    expect(looksSensitive("ABCD-EFGH-1234")).toBe(true);
-  });
-  it("preserves approval continuations and provider signatures without retaining them", () => {
-    const messages = [{ id: "a1", role: "assistant", parts: [{ type: "tool-propose_order", state: "approval-responded",
-      toolCallId: "call-1", input: { productId: "flipkart-india", packageValue: "500" },
-      approval: { id: "approval-1", approved: true, signature: "YWJj+/==", reason: "Buyer approved in the app" } }] }];
-    expect(validateChatMessages(messages)).toEqual(messages);
-    expect(eventMetadata(messages[0].parts[0])).toEqual({});
-  });
   it("does not persist chat, tool arguments, signed proposals or error text", () => {
     const secret = "SYNTHETIC_SECRET";
     logAgentEvent(secret, "tool_result", secret, { text: secret, productId: secret, proposalToken: secret, error: secret, priceCents: 100, approved: true });
@@ -104,6 +89,39 @@ describe("catalog separation and quote validation", () => {
 });
 
 describe("atomic spending reservations", () => {
+  it("counts live price drift and rejects drift beyond the daily cap", () => {
+    reserveOrder({ ...row("drift", 400), status: "paid" }, "drift", false);
+    claimFulfillment("drift", "live");
+    expect(reserveFulfillmentCost("drift", 420)).toBe(true);
+    expect(agentSpentTodayCents()).toBe(420);
+    vi.stubEnv("AGENT_DAILY_LIMIT_CENTS", "419");
+    expect(reserveFulfillmentCost("drift", 421)).toBe(false);
+    expect(agentSpentTodayCents()).toBe(420);
+    expect(getOrder("drift")?.priceUsdCents).toBe(400);
+  });
+  it("never lets price drift exceed the sponsor campaign budget", () => {
+    reserveOrder({ ...row("sponsored", 400), status: "paid", approvedAt: Date.now() }, "sponsored", true);
+    claimFulfillment("sponsored", "live");
+    db().$client.prepare("INSERT INTO campaigns VALUES (?,?,?,?,?,?,?,0,?)")
+      .run("campaign", "Test", 400, "IN", "[]", "hash", Date.now() + 60_000, Date.now());
+    db().$client.prepare("INSERT INTO reward_claims(id,campaign_id,secret_hash,buyer_key,state,order_id,updated_at) VALUES (?,?,?,?,?,?,?)")
+      .run("claim", "campaign", "hash", "key", "ordered", "sponsored", Date.now());
+    expect(reserveFulfillmentCost("sponsored", 401)).toBe(false);
+    expect(reserveFulfillmentCost("sponsored", 399)).toBe(true);
+  });
+  it("quarantines abandoned purchases without permitting a second buy", () => {
+    for (const id of ["abandoned", "active", "recent"]) {
+      reserveOrder({ ...row(id), status: "paid", type: "topup", sealedPhone: "ciphertext" }, id, false);
+      claimFulfillment(id, "simulate");
+    }
+    db().$client.prepare("UPDATE orders SET updated_at=? WHERE id != 'recent'").run(Date.now() - 11 * 60_000);
+    expect(recoverStaleFulfillments(new Set(["active"]))).toBe(1);
+    expect(getOrder("abandoned")).toMatchObject({ status: "failed_uncertain", sealedPhone: null });
+    expect(claimFulfillment("abandoned", "live")).toBe(false);
+    expect(getOrder("active")?.status).toBe("fulfilling");
+    expect(getOrder("recent")?.status).toBe("fulfilling");
+    expect(agentSpentTodayCents()).toBe(1200);
+  });
   it("counts yesterday's order paid today", () => {
     insertOrder({ ...row("legacy", 2000), createdAt: Date.now() - 86_400_000, status: "delivered", paidAt: Date.now() });
     expect(agentSpentTodayCents()).toBe(2000);
@@ -174,6 +192,27 @@ it("fulfills a simulated card once and decrypts only with the buyer key", async 
   expect(JSON.parse(await open(delivered.sealedPayload!, buyer.publicKey, buyer.secretKey)).kind).toBe("giftcard");
   expect((await fulfillOrder("delivery")).status).toBe("skipped");
   expect(fetcher).not.toHaveBeenCalled();
+});
+
+it("reconciles an interrupted purchase with its saved invoice, without buying again", async () => {
+  const buyer = await generateKeyPair();
+  reserveOrder({ ...row("restart"), status: "paid", buyerPubKey: buyer.publicKey }, "restart", false);
+  claimFulfillment("restart", "simulate");
+  db().$client.prepare("UPDATE orders SET bitrefill_invoice_id=?, updated_at=? WHERE id=?")
+    .run("SIM-giftcard-restart", Date.now() - 11 * 60_000, "restart");
+  const purchase = vi.spyOn(bitrefill, "createInvoice");
+  expect(recoverStaleFulfillments(new Set())).toBe(1);
+  expect((await reconcileOrder("restart")).status).toBe("delivered");
+  expect(purchase).not.toHaveBeenCalled();
+  expect(JSON.parse(await open(getOrder("restart")!.sealedPayload!, buyer.publicKey, buyer.secretKey)).kind).toBe("giftcard");
+});
+
+it.each(["giftcard", "esim"] as const)("does not release an empty %s redemption as delivered", async (type) => {
+  const buyer = await generateKeyPair();
+  reserveOrder({ ...row("empty"), type, status: "paid", productId: "fixture", buyerPubKey: buyer.publicKey }, "empty", false);
+  vi.spyOn(bitrefill, "getOrder").mockResolvedValue({ id: "fixture", status: "delivered" });
+  expect((await fulfillOrder("empty")).status).toBe("failed_uncertain");
+  expect(getOrder("empty")?.sealedPayload).toBeNull();
 });
 
 it("wipes sealed phone data even when decryption fails before the purchase call", async () => {

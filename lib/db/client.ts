@@ -9,7 +9,8 @@ type DB = BetterSQLite3Database<typeof schema> & { $client: Database.Database };
 const g = globalThis as unknown as { __zealedDb?: DB };
 
 export function openDb(path = process.env.DATABASE_PATH ?? "./data/zealed.db"): DB {
-  const file = resolve(path);
+  // Runtime data is supplied by the deployment volume, never bundled from this workstation.
+  const file = resolve(/* turbopackIgnore: true */ path);
   mkdirSync(dirname(file), { recursive: true });
   const sqlite = new Database(file);
   sqlite.pragma("journal_mode = WAL");

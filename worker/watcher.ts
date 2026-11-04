@@ -3,7 +3,7 @@
 import { memoCartHash } from "../lib/cart";
 import { fulfillOrder, reconcileOrder } from "../lib/fulfill";
 import { log, safeError } from "../lib/log";
-import { getOrderByMemo, now, ordersInStatus, transition } from "../lib/orders";
+import { getOrderByMemo, now, ordersInStatus, recoverStaleFulfillments, transition } from "../lib/orders";
 import { extractMemoTag } from "../lib/zip321";
 import { MIN_CONFIRMATIONS, zcash } from "../lib/zcash";
 
@@ -13,6 +13,7 @@ const RECONCILE_EVERY_MS = 60_000; // Bitrefill allows 60 invoice reads per 10 m
 const lastReconcile = new Map<string, number>();
 
 export async function tick(): Promise<void> {
+  recoverStaleFulfillments(inFlight);
   const backend = await zcash();
   const receipts = await backend.poll();
 

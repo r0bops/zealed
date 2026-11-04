@@ -11,6 +11,11 @@ import {
 import { decodeContent, encodeContent } from "./payload";
 
 describe("sodium", () => {
+  it("rejects low-order recipient keys before a reward can be purchased", async () => {
+    expect(await isPublicKey(Buffer.alloc(32).toString("base64url"))).toBe(false);
+    expect(await isPublicKey(Buffer.from([1, ...new Array(31).fill(0)]).toString("base64url"))).toBe(false);
+    expect(await isPublicKey((await generateKeyPair()).publicKey)).toBe(true);
+  });
   it("seals to a public key and opens with the matching secret key", async () => {
     const buyer = await generateKeyPair();
     const content = encodeContent({ kind: "giftcard", code: "ABCD-EFGH-1234", pin: "9876" });
