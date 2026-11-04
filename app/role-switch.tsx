@@ -37,11 +37,11 @@ export function RoleCards() {
 
 /** Progress tracker. `current` is the index of the active step; `current >= steps.length` means all done. */
 export function Steps({ steps, current, label, failed = false }: { steps: string[]; current: number; label: string; failed?: boolean }) {
-  return <ol aria-label={label} className="grid gap-2" style={{ gridTemplateColumns: `repeat(${steps.length}, minmax(0, 1fr))` }}>
+  return <ol aria-label={label} className="workspace-steps" style={{ gridTemplateColumns: `repeat(${steps.length}, minmax(0, 1fr))` }}>
     {steps.map((step, i) => {
       const state = i < current ? "done" : i === current ? (failed ? "failed" : "current") : "todo";
       return <li key={step} aria-current={state === "current" || state === "failed" ? "step" : undefined} className="flex min-w-0 flex-col gap-2">
-        <span aria-hidden className={`h-1 rounded-full ${state === "done" ? "bg-sealed" : state === "current" ? "bg-accent" : state === "failed" ? "bg-danger" : "bg-line"}`} />
+        <span aria-hidden className={`workspace-steps-track ${state === "done" ? "bg-sealed" : state === "current" ? "bg-accent" : state === "failed" ? "bg-danger" : "bg-line"}`} />
         <span className={`text-xs leading-snug ${state === "todo" ? "text-muted" : "font-medium"}`}>
           <span className="font-mono text-muted">{String(i + 1).padStart(2, "0")}</span> {step}
           <span className="sr-only">{state === "done" ? " (done)" : state === "current" ? " (current step)" : state === "failed" ? " (needs attention)" : ""}</span>
