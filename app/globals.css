@@ -45,3 +45,82 @@ body {
   color: var(--foreground);
   font-family: var(--font-geist-sans), system-ui, sans-serif;
 }
+
+/* Landing presentation is scoped so the checkout and organizer workspace keep their layout. */
+.landing-shell {
+  --ticket: #f2c45b;
+  --ticket-ink: #28200e;
+}
+.landing-container {
+  width: calc(100% - 2rem);
+  max-width: 1160px;
+  margin-inline: auto;
+}
+.landing-title {
+  font-size: clamp(2.65rem, 5.1vw, 4.4rem);
+  font-weight: 600;
+  line-height: 1.06;
+  letter-spacing: -0.055em;
+}
+.landing-heading {
+  font-size: clamp(1.8rem, 3vw, 2.5rem);
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -0.04em;
+}
+.landing-eyebrow {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.landing-focus:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+}
+.landing-primary, .landing-secondary {
+  display: inline-flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 12px 20px;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+.landing-primary { background: var(--foreground); color: var(--background); }
+.landing-secondary { border: 1px solid var(--line); }
+.landing-primary:hover { opacity: 0.88; }
+.landing-secondary:hover { background: var(--surface); }
+.zealed-mark {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  background: var(--ticket);
+  color: var(--ticket-ink);
+  border-radius: 8px;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 26px;
+  font-weight: 600;
+  line-height: 1;
+}
+.reward-preview { overflow: hidden; min-width: 0; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); }
+.reward-ticket { position: relative; overflow: hidden; border-radius: 12px; background: var(--ticket); color: var(--ticket-ink); }
+.reward-ticket::before, .reward-ticket::after {
+  content: "";
+  position: absolute;
+  bottom: 32px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--surface);
+}
+.reward-ticket::before { left: -9px; }
+.reward-ticket::after { right: -9px; }
+.landing-perks { background: var(--accent-soft); }
+.perk-symbol { display: grid; width: 44px; height: 44px; flex-shrink: 0; place-items: center; border: 1px solid var(--line); border-radius: 50%; font-size: 24px; }
+@media (min-width: 640px) { .landing-container { width: calc(100% - 4rem); } }
+@media (prefers-reduced-motion: reduce) { .landing-shell *, .landing-shell *::before, .landing-shell *::after { transition: none !important; animation: none !important; scroll-behavior: auto !important; } }
