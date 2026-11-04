@@ -3,7 +3,7 @@ import { set } from "idb-keyval";
 import { useState } from "react";
 import { attendeeHashBrowser, looksLikeEmail } from "@/lib/attendee-hash";
 import { createOrderKey } from "@/lib/keystore";
-import { button, panel, request } from "../reward-ui";
+import { Details, button, humanizeError, panel, request } from "../reward-ui";
 
 type ClaimSession = { invitation: string; publicKey?: string; secret?: string; claimId?: string; attendee?: string };
 type EmailInvitation = { expired: boolean; claimed: boolean; attendeeEventId?: string };
@@ -44,16 +44,16 @@ export function EmailVerify({ campaignId, storageKey, session, invitation, onSes
 
   return (
     <form className={panel} onSubmit={submit}>
-      <h2 className="text-lg font-semibold">Approved attendees only</h2>
-      <p className="text-sm text-muted">Enter the email you registered with on Luma. Your browser turns it into a one-way hash and sends only that, so Zealed never sees your email. Each attendee can claim once.</p>
+      <h2 className="text-lg font-semibold">Approved guests only</h2>
+      <p className="text-base text-muted">Enter the email you used to register. It stays on this device. Each person can claim once.</p>
       <label className="flex flex-col gap-1 text-sm">
         <span className="font-medium">Luma email</span>
         <input type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.currentTarget.value)} placeholder="you@example.com"
           className="min-h-11 rounded-lg border border-line bg-background px-3 py-2 outline-none focus-visible:border-accent" />
       </label>
-      {error && <p role="alert" className="text-sm text-danger">{error}</p>}
-      <button className={button} disabled={busy || blocked}>{busy ? "Checking the attendee list…" : invitation.claimed && !session?.secret ? "Invitation already claimed" : "Check & reserve my reward"}</button>
-      <p className="text-xs text-muted" data-mission-mode="email">Mission mode: approved-attendee email list (hashed in your browser).</p>
+      {error && <p role="alert" className="text-base text-danger">{humanizeError(error).text}</p>}
+      <button className={button} disabled={busy || blocked}>{busy ? "Checking the guest list…" : invitation.claimed && !session?.secret ? "Invitation already claimed" : error ? "Try again" : "Reserve my reward"}</button>
+      <Details><p data-mission-mode="email">Your browser sends a one-way code instead of the email, so Zealed never receives the address.</p></Details>
     </form>
   );
 }

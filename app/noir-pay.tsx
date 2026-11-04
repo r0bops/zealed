@@ -1,8 +1,8 @@
 "use client";
-// "Pay with Noir Wallet": the buyer pays the exact shielded amount + memo from their own browser wallet.
-// The wallet sees our address, the amount and the memo (order tag + cart hash), never a code or phone number.
+// Authorise with Noir Wallet from the browser. The wallet sees the address, amount and memo, never a code.
 import { getNoirWallet } from "@noir-wallet/sdk";
 import { useEffect, useState } from "react";
+import { Details } from "./reward-ui";
 
 const TESTNET_RELEASES = "https://github.com/NoirWallet/noir-wallet/releases";
 const isShieldedTestnetAddress = (a: string) => /^(utest1|ztestsapling)[0-9a-z]+$/.test(a) && !a.includes("simulated");
@@ -14,7 +14,7 @@ type State =
   | { kind: "sent"; txid: string }
   | { kind: "error"; message: string };
 
-export function NoirPayButton({ to, amountZec, memo, simulatedDetection, onSent }: { to: string; amountZec: string; memo: string; simulatedDetection: boolean; onSent?: (txid: string) => void }) {
+export function NoirPayButton({ to, amountZec, memo, simulatedDetection, onSent, variant = "primary" }: { to: string; amountZec: string; memo: string; simulatedDetection: boolean; onSent?: (txid: string) => void; variant?: "primary" | "link" }) {
   const [installed, setInstalled] = useState<boolean | null>(null);
   const [state, setState] = useState<State>({ kind: "idle" });
 
@@ -33,13 +33,13 @@ export function NoirPayButton({ to, amountZec, memo, simulatedDetection, onSent 
   async function pay() {
     const wallet = getNoirWallet();
     if (!wallet) return setInstalled(false);
-    if (!isShieldedTestnetAddress(to)) return setState({ kind: "error", message: "This order has no real testnet address to pay (SIMULATED backend)." });
+    if (!isShieldedTestnetAddress(to)) return setState({ kind: "error", message: "This demo can’t be approved from a wallet." });
     try {
       setState({ kind: "connecting" });
       await wallet.zcash.connect();
       const balance = await wallet.zcash.getBalance();
       if (Number(balance.shielded) < Number(amountZec)) {
-        return setState({ kind: "error", message: `Your shielded balance is ${balance.shielded} TAZ; this needs ${amountZec} TAZ. Get TAZ from a faucet first.` });
+        return setState({ kind: "error", message: "Your wallet doesn’t have enough testnet funds to authorise this." });
       }
       setState({ kind: "sending" });
       const txid = await wallet.zcash.sendTransaction({ to, amount: amountZec, memo, fundingSource: "shielded" });
@@ -54,43 +54,45 @@ export function NoirPayButton({ to, amountZec, memo, simulatedDetection, onSent 
 
   if (installed === false)
     return (
-      <p className="text-xs text-muted">
+      <p className="text-sm text-muted">
         Have a browser wallet?{" "}
         <a href={TESTNET_RELEASES} target="_blank" rel="noreferrer" className="underline">
-          Install [Testnet] Noir Wallet
+          Install the testnet wallet
         </a>{" "}
-        to pay in one click.
+        to authorise in one step.
       </p>
     );
   if (installed === null) return null;
 
   if (state.kind === "sent")
     return (
-      <p className="rounded-lg border border-sealed/40 px-3 py-2 text-sm text-sealed">
-        Sent from Noir Wallet.{" "}
-        <a href={`https://zexplorer.app/testnet/tx/${state.txid}`} target="_blank" rel="noreferrer" className="font-mono underline">
-          {state.txid.slice(0, 12)}…
-        </a>{" "}
-        Waiting for the network to confirm.
-      </p>
+      <div className="flex flex-col gap-2">
+        <p className="rounded-lg border border-sealed/40 px-3 py-2 text-base text-sealed">Sent from your wallet. Waiting for it to be approved privately with Zcash.</p>
+        <Details>
+          <a href={`https://zexplorer.app/testnet/tx/${state.txid}`} target="_blank" rel="noreferrer" className="underline">Transaction {state.txid}</a>
+        </Details>
+      </div>
     );
 
   const busy = state.kind === "connecting" || state.kind === "sending";
+  const label = state.kind === "connecting" ? "Connecting to your wallet…" : state.kind === "sending" ? "Approve this in your wallet…" : "Authorise with your wallet";
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex flex-col items-start gap-2">
       <button
         type="button"
         onClick={pay}
         disabled={busy}
-        className="min-h-11 rounded-lg bg-accent px-3 py-2 text-sm font-medium text-background transition-opacity disabled:opacity-50"
+        className={variant === "link"
+          ? "inline-flex min-h-12 items-center text-base font-medium underline underline-offset-4 disabled:opacity-50"
+          : "inline-flex min-h-12 items-center justify-center rounded-lg bg-accent px-5 py-3 text-base font-semibold text-background disabled:opacity-50"}
       >
-        {state.kind === "connecting" ? "Connecting to Noir Wallet…" : state.kind === "sending" ? "Approve the payment in Noir Wallet…" : `Pay ${amountZec} TAZ with Noir Wallet`}
+        {label}
       </button>
-      <p className="text-xs text-muted">
-        Shielded payment with the memo pre-filled. Noir sees our address, the amount and the memo, nothing you bought.
-        {simulatedDetection && " Detection is SIMULATED in this build."}
+      <p className="text-sm text-muted">
+        Your wallet gets the amount and a note, not what was bought.
+        {simulatedDetection && " Detection on this demo is simulated."}
       </p>
-      {state.kind === "error" && <p className="text-sm text-danger">{state.message}</p>}
+      {state.kind === "error" && <p className="text-base text-danger">{state.message}</p>}
     </div>
   );
 }

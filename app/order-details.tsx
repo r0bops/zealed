@@ -7,6 +7,7 @@ import { importKey, loadKey, orderAccessToken } from "@/lib/keystore";
 import { decodeContent, type SealedContent } from "@/lib/payload";
 import { fingerprint, open } from "@/lib/sodium";
 import { NoirPayButton } from "./noir-pay";
+import { Chest, Details, ErrorNote, LoadingLine, button, buttonSecondary, field, formatUsd } from "./reward-ui";
 
 interface PublicOrder {
   id: string;
@@ -35,23 +36,45 @@ interface OrderResponse {
   sponsored?: boolean;
 }
 
-const STEPS = [
-  { key: "awaiting_payment", label: "Waiting for payment" },
-  { key: "payment_seen", label: "Seen in mempool" },
-  { key: "paid", label: "Confirmed" },
-  { key: "fulfilling", label: "Buying from Bitrefill" },
-  { key: "delivered", label: "Delivered" },
-];
 const zec = (zat: number) => (zat / 1e8).toFixed(8).replace(/0+$/, "").replace(/\.$/, "");
 
-// ---------------------------------------------------------------- payment + delivery panel
+function friendlyStatus(status: string, sponsored?: boolean): string {
+  switch (status) {
+    case "awaiting_payment":
+    case "awaiting_seller":
+      return sponsored
+        ? "Waiting for the sponsor to approve. Your reward will appear here."
+        : "Waiting for this reward to be approved with Zcash.";
+    case "payment_seen":
+    case "paid":
+      return "Approved privately with Zcash.";
+    case "fulfilling":
+      return "Approved privately with Zcash. Preparing your reward.";
+    case "delivered":
+      return "Your reward is ready.";
+    case "expired":
+      return "This request expired. Ask the sponsor for a new one.";
+    case "failed":
+    case "failed_uncertain":
+      return "We couldn’t finish this reward. Ask the sponsor to take a look.";
+    default:
+      return "Checking your reward.";
+  }
+}
 
-export function PaymentPanel({ orderId, compact = false }: { orderId: string; compact?: boolean }) {
+function howToUse(content: SealedContent): [string, string] {
+  if (content.kind === "giftcard") return ["Open the store’s website or app.", "Paste this code where it asks for a gift card."];
+  if (content.kind === "esim") return ["On your phone, open Settings and add an eSIM.", "Scan the QR code, or paste the activation code."];
+  return ["Your reward is ready in this browser.", "Come back to this page if you need it again."];
+}
+
+export function PaymentPanel({ orderId, compact = false, budgetCents, onStatus }: { orderId: string; compact?: boolean; budgetCents?: number; onStatus?: (status: string) => void }) {
   const [data, setData] = useState<OrderResponse | null>(null);
   const [qr, setQr] = useState<string | null>(null);
   const [fp, setFp] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [simBusy, setSimBusy] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   const status = data?.order.status;
 
   useEffect(() => {
@@ -62,24 +85,30 @@ export function PaymentPanel({ orderId, compact = false }: { orderId: string; co
         const res = await fetch(`/api/orders/${orderId}`, { cache: "no-store", headers: { authorization: `Bearer ${await orderAccessToken(orderId) ?? ""}` } });
         const d = (await res.json()) as OrderResponse & { error?: string };
         if (!res.ok) throw new Error(d.error ?? "order not found");
-        if (!stop) setData(d);
+        if (!stop) { setData(d); setError(null); }
         if (!stop && !["delivered", "failed", "expired"].includes(d.order.status)) timer = setTimeout(load, 2500);
       } catch (e) {
         if (!stop) setError((e as Error).message);
       }
     };
-    load();
+    void load();
     return () => {
       stop = true;
       clearTimeout(timer);
     };
-  }, [orderId]);
+  }, [orderId, attempt]);
+
+  useEffect(() => {
+    if (status) onStatus?.(status);
+  }, [status, onStatus]);
 
   useEffect(() => {
     if (!data) return;
     QRCode.toDataURL(data.zip321, { margin: 1, width: 240 }).then(setQr).catch(() => setQr(null));
     fingerprint(data.order.buyerPubKey).then(setFp).catch(() => setFp(null));
-  }, [data?.zip321, data?.order.buyerPubKey]); // eslint-disable-line react-hooks/exhaustive-deps
+    // Regenerate only when the payment URI or buyer key changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data?.zip321, data?.order.buyerPubKey]);
 
   async function simulate() {
     setSimBusy(true);
@@ -87,89 +116,62 @@ export function PaymentPanel({ orderId, compact = false }: { orderId: string; co
     setSimBusy(false);
   }
 
-  if (error) return <p className="text-sm text-danger">{error}</p>;
-  if (!data) return <p className="text-sm text-muted">Loading order…</p>;
+  if (error) return <ErrorNote message={error} onRetry={() => { setError(null); setAttempt(n => n + 1); }} />;
+  if (!data) return <LoadingLine>Getting your reward ready…</LoadingLine>;
   const o = data.order;
-  const stepIndex = STEPS.findIndex((s) => s.key === status);
+  const waiting = o.status === "awaiting_payment" || o.status === "awaiting_seller" || o.status === "payment_seen";
+  const problem = o.status === "failed" || o.status === "failed_uncertain" || o.status === "expired";
 
   return (
-    <div className="flex w-full max-w-md flex-col gap-3 rounded-xl border border-line bg-background p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="font-semibold">{o.productName}</p>
-          <p className="text-sm text-muted">
-            {o.packageValue} · ${(o.priceUsdCents / 100).toFixed(2)}
-          </p>
-        </div>
-        {!compact && <Link href="/claim" className="text-sm text-muted underline">Claim a reward</Link>}
-        {compact && (
-          <a href={`/order/${o.id}`} target="_blank" className="text-xs text-muted underline">
-            Order page
-          </a>
-        )}
+    <div className="flex w-full max-w-md flex-col gap-4 rounded-xl border border-line bg-surface p-4 sm:p-6">
+      <div>
+        <p className="text-lg font-semibold">{o.productName}</p>
+        {o.packageValue && <p className="text-base text-muted">{o.packageValue}</p>}
+        <p className="text-base">
+          {formatUsd(o.priceUsdCents)}
+          {typeof budgetCents === "number" ? ` of ${formatUsd(budgetCents)} budget` : ""}
+        </p>
       </div>
 
-      <ol className="flex flex-col gap-1 text-sm">
-        {STEPS.map((s, i) => (
-          <li key={s.key} className={`flex items-center gap-2 ${i <= stepIndex ? "text-foreground" : "text-muted"}`}>
-            <span
-              aria-hidden
-              className={`size-2 rounded-full ${i < stepIndex || status === "delivered" ? "bg-sealed" : i === stepIndex ? "animate-pulse bg-accent" : "bg-line"}`}
-            />
-            {s.label}
-            {s.key === "payment_seen" && o.txid && i <= stepIndex && <span className="font-mono text-xs text-muted">{o.txid.slice(0, 12)}…</span>}
-          </li>
-        ))}
-      </ol>
-
-      {(status === "failed" || status === "failed_uncertain" || status === "expired") && (
-        <p role="alert" className="rounded-lg border border-danger/40 px-3 py-2 text-sm text-danger">
-          {status === "expired" ? "This payment request expired. Ask the agent for a new one." : o.failure ?? "Fulfilment failed."}
-        </p>
+      {o.status !== "delivered" && (
+        <>
+          {waiting && <Chest open={false} />}
+          <p role={problem ? "alert" : "status"} className={`text-base ${problem ? "text-danger" : ""}`}>{friendlyStatus(o.status, data.sponsored)}</p>
+        </>
       )}
 
-      {status === "awaiting_payment" && data.sponsored && <p className="text-sm text-muted">Your sponsor is authorising this reward. You do not need to pay.</p>}
-      {status === "awaiting_payment" && !data.sponsored && (
+      {o.status === "awaiting_payment" && !data.sponsored && (
         <div className="flex flex-col gap-3">
           <NoirPayButton to={o.payAddr} amountZec={zec(o.amountZat)} memo={data.memo} simulatedDetection={data.simulatedPayment} />
-          <p className="text-xs text-muted">Or pay from any testnet wallet:</p>
-          <div className="flex gap-3">
+          <p className="text-sm text-muted">Or scan this with your Zcash wallet.</p>
+          <div className="flex flex-col gap-3 sm:flex-row">
             {/* eslint-disable-next-line @next/next/no-img-element -- local data: URL */}
-            {qr && <img src={qr} alt="Zcash payment QR code" className="size-32 shrink-0 rounded-lg bg-white p-1" />}
-            <div className="flex min-w-0 flex-col gap-1 text-sm">
-              <p>
-                Send <span className="font-mono font-medium">{zec(o.amountZat)} TAZ</span> (shielded) with the memo. Scan with a testnet Zcash wallet.
-              </p>
-              <p className="truncate font-mono text-xs text-muted" title={data.memo}>
-                memo: {data.memo}
-              </p>
-              <a href={data.zip321} className="text-sm underline">
-                Open in wallet
-              </a>
-              <button type="button" onClick={() => navigator.clipboard.writeText(data.zip321)} className="w-fit text-xs text-muted underline">
-                Copy payment URI
-              </button>
-            </div>
+            {qr && <img src={qr} alt="Zcash approval QR code" className="size-32 shrink-0 rounded-lg bg-white p-1" />}
+            <a href={data.zip321} className={buttonSecondary}>Open in your wallet</a>
           </div>
-          {data.simulatedPayment && (
-            <button
-              type="button"
-              onClick={simulate}
-              disabled={simBusy}
-              className="rounded-lg border border-dashed border-accent px-3 py-2 text-sm font-medium text-accent disabled:opacity-50"
-            >
-              SIMULATED payment (dev only)
-            </button>
-          )}
         </div>
       )}
 
-      {status === "delivered" && <Delivered order={o} />}
+      {data.simulatedPayment && o.status === "awaiting_payment" && (
+        <button type="button" onClick={simulate} disabled={simBusy} className={buttonSecondary}>
+          {simBusy ? "Working…" : "Simulate approval (demo only)"}
+        </button>
+      )}
 
-      <p className="text-xs text-muted">
-        Your key {fp ? <span className="font-mono">{fp}</span> : "…"} · the server only ever stores ciphertext for this order.
-        {data.simulatedPayment && <span className="ml-1 font-medium text-accent">Payment: SIMULATED</span>}
-      </p>
+      {o.status === "delivered" && <Delivered order={o} />}
+
+      <Details>
+        <p>Reward reference {o.id}</p>
+        {o.txid && <a className="underline" href={`https://zexplorer.app/testnet/tx/${o.txid}`} target="_blank" rel="noreferrer">Transaction {o.txid}</a>}
+        {o.minedHeight != null && <p>Recorded at block {o.minedHeight}</p>}
+        {o.bitrefillOrderId && <p>Invoice {o.bitrefillOrderId}</p>}
+        <p className="break-all">Note: {data.memo}</p>
+        {fp && <p className="font-mono text-xs">Browser key {fp}</p>}
+        {data.simulatedPayment && <p>Approval detection on this demo is simulated.</p>}
+        {o.failure && <p>{o.failure}</p>}
+        {!compact && <Link href="/claim" className="underline">Claim a reward</Link>}
+        <a href={`/order/${o.id}`} target="_blank" rel="noreferrer" className="underline">Open this reward on its own page</a>
+      </Details>
     </div>
   );
 }
@@ -178,6 +180,7 @@ function Delivered({ order }: { order: PublicOrder }) {
   const [content, setContent] = useState<SealedContent | null>(null);
   const [missingKey, setMissingKey] = useState(false);
   const [revealed, setRevealed] = useState(false);
+  const [copied, setCopied] = useState(false);
   const [esimQr, setEsimQr] = useState<string | null>(null);
   const backupRef = useRef<HTMLInputElement>(null);
 
@@ -187,7 +190,7 @@ function Delivered({ order }: { order: PublicOrder }) {
     if (!kp) return setMissingKey(true);
     const c = decodeContent(await open(order.sealedPayload, kp.publicKey, kp.secretKey));
     setContent(c);
-    if (c.kind === "esim") setEsimQr(await QRCode.toDataURL(c.lpa, { margin: 1, width: 220 }));
+    if (c.kind === "esim") setEsimQr(await QRCode.toDataURL(c.lpa, { margin: 1, width: 280 }));
   }
 
   useEffect(() => {
@@ -201,27 +204,26 @@ function Delivered({ order }: { order: PublicOrder }) {
         const c = decodeContent(await open(order.sealedPayload, kp.publicKey, kp.secretKey));
         if (cancelled) return;
         setContent(c);
-        if (c.kind === "esim") setEsimQr(await QRCode.toDataURL(c.lpa, { margin: 1, width: 220 }));
+        if (c.kind === "esim") setEsimQr(await QRCode.toDataURL(c.lpa, { margin: 1, width: 280 }));
       } catch {
         if (!cancelled) setMissingKey(true);
       }
     })();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [order.sealedPayload, order.buyerPubKey]);
 
   if (order.type === "topup")
     return (
-      <p className="rounded-lg border border-sealed/40 px-3 py-2 text-sm text-sealed">
-        Delivered. Your number was used once and {order.phoneWiped ? "has been deleted" : "is being deleted"}. Zealed keeps only the Bitrefill order ID.
-      </p>
+      <div className="flex flex-col gap-3">
+        <Chest open />
+        <p className="text-base text-sealed">Delivered. The phone number was used once and {order.phoneWiped ? "has been deleted" : "is being deleted"}.</p>
+      </div>
     );
 
   if (missingKey)
     return (
       <form
-        className="flex flex-col gap-2 text-sm"
+        className="flex flex-col gap-3 text-base"
         onSubmit={async (e) => {
           e.preventDefault();
           await importKey(backupRef.current?.value ?? "").catch(() => null);
@@ -229,53 +231,54 @@ function Delivered({ order }: { order: PublicOrder }) {
           decrypt().catch(() => setMissingKey(true));
         }}
       >
-        <p>This browser doesn&apos;t hold the key for this order. Paste your key backup to open it.</p>
-        <input ref={backupRef} className="rounded-lg border border-line bg-background px-3 py-2 font-mono text-xs" placeholder="zealed-key-v1-…" />
-        <button className="w-fit rounded-lg bg-foreground px-3 py-1.5 text-background">Open</button>
+        <p>This browser doesn’t have the key for this reward. Paste your backup to open it.</p>
+        <input ref={backupRef} className={field + " font-mono text-sm"} placeholder="Paste your backup" aria-label="Backup" />
+        <button className={button}>Open reward</button>
       </form>
     );
 
-  if (!content) return <p className="text-sm text-muted">Decrypting in your browser…</p>;
+  if (!content) return <LoadingLine>Opening your reward in this browser…</LoadingLine>;
+
+  const code = content.kind === "giftcard" ? content.code : content.kind === "esim" ? content.lpa : undefined;
+  const pin = content.kind === "giftcard" ? content.pin : undefined;
+  const link = content.kind === "giftcard" ? content.link : undefined;
+  const [line1, line2] = howToUse(content);
+  const masked = code ? "•".repeat(Math.min(code.length, 16)) : "";
+
+  async function copyCode() {
+    if (!code) return;
+    setRevealed(true);
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setCopied(false);
+    }
+  }
 
   return (
-    <div className="flex flex-col gap-2 rounded-lg border border-sealed/40 p-3 text-sm">
-      <p className="font-medium text-sealed">Decrypted in your browser</p>
-      {content.kind === "giftcard" && (
-        <>
-          {content.code && <Secret label="Code" value={content.code} revealed={revealed} />}
-          {content.pin && <Secret label="PIN" value={content.pin} revealed={revealed} />}
-          {content.link && revealed && (
-            <a href={content.link} target="_blank" rel="noreferrer" className="underline">
-              Redemption link
-            </a>
-          )}
-        </>
+    <div className="flex flex-col gap-4">
+      <Chest open />
+      <p className="text-base font-medium text-sealed">Your reward is ready.</p>
+      {content.kind === "esim" && revealed && esimQr && (
+        // eslint-disable-next-line @next/next/no-img-element -- local data: URL
+        <img src={esimQr} alt="eSIM activation QR code" className="size-44 rounded-lg bg-white p-1" />
       )}
-      {content.kind === "esim" && (
-        <div className="flex flex-col gap-2">
-          {/* eslint-disable-next-line @next/next/no-img-element -- local data: URL */}
-          {revealed && esimQr ? <img src={esimQr} alt="eSIM activation QR code" className="size-40 rounded-lg bg-white p-1" /> : <p className="text-muted">eSIM QR code hidden</p>}
-          <Secret label="Activation" value={content.lpa} revealed={revealed} />
-        </div>
+      {code && (
+        <p className="break-all text-center font-mono text-2xl tracking-wide text-foreground sm:text-3xl">{revealed ? code : masked}</p>
       )}
-      {"instructions" in content && content.instructions && <p className="text-xs text-muted">{content.instructions}</p>}
-      <button type="button" onClick={() => setRevealed((r) => !r)} className="w-fit rounded-lg border border-line px-3 py-1.5">
-        {revealed ? "Hide" : "Reveal"}
-      </button>
+      {pin && (
+        <p className="text-center text-base text-muted">PIN <span className="font-mono text-foreground">{revealed ? pin : "•".repeat(Math.min(pin.length, 16))}</span></p>
+      )}
+      <p className="text-base">{line1}</p>
+      <p className="text-base text-muted">{line2}</p>
+      {"instructions" in content && content.instructions && <p className="text-sm text-muted">{content.instructions}</p>}
+      {code && <button type="button" className={button} onClick={() => void copyCode()}>{copied ? "Copied" : "Copy code"}</button>}
+      {code && <button type="button" className={buttonSecondary} onClick={() => setRevealed(r => !r)}>{revealed ? "Hide code" : "Show code"}</button>}
+      {pin && revealed && <button type="button" className={buttonSecondary} onClick={() => void navigator.clipboard.writeText(pin)}>Copy PIN</button>}
+      {link && revealed && <a href={link} target="_blank" rel="noreferrer" className={code ? buttonSecondary : button}>Open the redemption page</a>}
+      {!code && !link && <p className="text-base">Nothing else to copy. Follow the two lines above.</p>}
     </div>
-  );
-}
-
-function Secret({ label, value, revealed }: { label: string; value: string; revealed: boolean }) {
-  return (
-    <p className="flex items-center gap-2">
-      <span className="text-muted">{label}</span>
-      <span className="font-mono break-all">{revealed ? value : "•".repeat(Math.min(value.length, 16))}</span>
-      {revealed && (
-        <button type="button" onClick={() => navigator.clipboard.writeText(value)} className="text-xs text-muted underline">
-          copy
-        </button>
-      )}
-    </p>
   );
 }

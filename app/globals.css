@@ -41,6 +41,11 @@ body {
 .workspace-shell :where(button, a, input, select, textarea):focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 .workspace-shell button:not(:disabled) { cursor: pointer; }
 .workspace-shell button:disabled { cursor: not-allowed; }
+.chest-lid { transform-origin: 40px 30px; transition: transform 0.45s ease; }
+.chest-open .chest-lid { transform: translateY(-8px) rotate(-16deg); }
+@media (prefers-reduced-motion: reduce) {
+  .chest-lid { transition: none !important; }
+}
 
 /* Legacy presentation helpers share the site palette. */
 .landing-shell {
