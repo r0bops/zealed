@@ -133,7 +133,7 @@ export function SealedLanding() {
                 <span className={styles.eyebrow}>illustrative replay</span>
               </div>
               <pre>
-                <span className={styles.muted}>$</span> <ZealedName lowercase /> claim --invite mission-42{"\n"}
+                <span className={styles.muted}>$</span> zealed claim --invite mission-42{"\n"}
                 <span className={styles.muted}>you     </span> key generated in browser · <span className={styles.ok}>bound</span>{"\n"}
                 <span className={styles.muted}>copier  </span> resends the same invite link…{"\n"}
                 <span className={styles.bad}>REJECTED</span> claim bound to another key · already used{"\n"}

@@ -1,10 +1,9 @@
-/** Product name with only the leading Z in Zcash gold. */
-export function ZealedName({ lowercase = false }: { lowercase?: boolean }) {
-  const word = lowercase ? "zealed" : "Zealed";
+/** Product name in running copy, with only the leading Z in Zcash gold. */
+export function ZealedName() {
   return (
     <>
-      <span className="z-accent">{word.slice(0, 1)}</span>
-      {word.slice(1)}
+      <span className="z-accent">Z</span>
+      ealed
     </>
   );
 }
