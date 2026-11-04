@@ -10,7 +10,14 @@ DRAFT. Before submitting:
 
 > Complete a mission, let an agent select an eligible perk, and receive it encrypted to your browser after a sponsor authorises the purchase through a shielded testnet payment.
 
-**Implementation status:** the bounded mission-rewards flow is implemented under the **Zealed** name: one invitation per campaign, a fixed mission, constrained agent selection, sponsor approval and encrypted player delivery. Automated tests cover the campaign flow using simulated fulfillment and a mocked model. Live catalog access and model selection were verified separately on 4 Nov (India eSIM, 1 GB / 7 days, quoted at $3.89 within a $5 budget; no purchase). A paid-product campaign run is **not yet verified**. Existing shielded-payment and Bitrefill test-product evidence below belongs to the original checkout flow.
+**Implementation status:** the bounded mission-rewards flow is built and has run end to end for real: one invitation per campaign, a fixed mission, constrained agent selection, sponsor approval and encrypted player delivery. On 4 Nov, the following happened in about 71 seconds:
+- Claude Haiku picked an India eSIM (1 GB / 7 days, $3.89) within a $5 budget.
+- The sponsor approved it and paid shielded TAZ (txid `18436165…f9ca`).
+- The watch-only watcher confirmed the payment.
+- Bitrefill delivered its **test eSIM product** (invoice `7d8e4569-daa5-4de9-9a35-518b7d42c47f`).
+- The player's browser key decrypted the eSIM activation string.
+
+A paid purchase of a real (non-test) product is still to come.
 
 **Funding:** testnet TAZ authorises purchases; Bitrefill is paid from separate event credits. Sponsors authorise each exact order after the player claims. There is no pooled campaign deposit, escrow or automatic refund. ZK proofs and multi-claim campaigns remain roadmap work.
 
@@ -22,9 +29,9 @@ DRAFT. Before submitting:
 | **What it is** | Organizer/player mission rewards, with the original shopping checkout retained |
 | **Live URL** | TODO: https://… |
 | **Demo video** | TODO: https://… (2–3 minutes) |
-| **Testnet txid** | `1bb9548ea9ee04da491071e86f7287391aa52f3260c51ce6219324615768defd`: a shielded order payment, mined at height 4581712. [zexplorer](https://zexplorer.app/testnet/tx/1bb9548ea9ee04da491071e86f7287391aa52f3260c51ce6219324615768defd) · [zcashexplorer](https://testnet.zcashexplorer.app/transactions/1bb9548ea9ee04da491071e86f7287391aa52f3260c51ce6219324615768defd) <!-- TODO: on 4 Nov, zexplorer's testnet index stopped at 4505881, so it shows "not found". Check the zcashexplorer link in a browser before submitting. --> |
+| **Testnet txid** | `1843616532cee751cbe556e902723d47b6675b6c92300b24070b8b6d1961f9ca`: a sponsor's shielded payment authorising a mission reward, mined at height 4581978. [zexplorer](https://zexplorer.app/testnet/tx/1843616532cee751cbe556e902723d47b6675b6c92300b24070b8b6d1961f9ca) · [zcashexplorer](https://testnet.zcashexplorer.app/transactions/1843616532cee751cbe556e902723d47b6675b6c92300b24070b8b6d1961f9ca). The first checkout payment was `1bb9548ea9ee04da491071e86f7287391aa52f3260c51ce6219324615768defd` (height 4581712). <!-- TODO: on 4 Nov, zexplorer's testnet index stopped at 4505881, so it shows "not found". Check the zcashexplorer link in a browser before submitting. --> |
 | **Real purchase invoice ID** | TODO: needs event credits and `BITREFILL_PURCHASES=live` |
-| **Bitrefill test-product invoices** | `98d4f316-c3fa-482a-9137-91723064b4e5` (gift card) · `3f51bca9-39bc-4579-bd51-6df1fc584d4b` (eSIM). Real API purchases of Bitrefill's free test products; the codes aren't redeemable |
+| **Bitrefill test-product invoices** | `7d8e4569-daa5-4de9-9a35-518b7d42c47f` (mission reward, eSIM) · `2cc79a30-29c6-423a-9d7a-8844d63b671a` (mission reward, gift card) · `98d4f316-c3fa-482a-9137-91723064b4e5` (checkout gift card) · `3f51bca9-39bc-4579-bd51-6df1fc584d4b` (checkout eSIM). Real API purchases of Bitrefill's free test products; the codes aren't redeemable |
 | **Team** | TODO: Name (@handle) |
 
 **Which parts serve which track**
@@ -50,25 +57,25 @@ DRAFT. Before submitting:
 
 1. An authenticated organizer creates a campaign with a spending ceiling, a small product allowlist, one mission and an expiring invitation. Each campaign permits one successful claim and expires after 24 hours.
 2. A player opens the QR/link in their browser and creates a local encryption key. The player completes a fixed quiz checked by backend code; the LLM cannot grant eligibility.
-3. The agent compares eligible perks against the player's nonsecret requirements and the campaign budget, then proposes an exact product and package. A fixed answer-to-SKU script alone would not demonstrate meaningful agent decision-making.
+3. The agent compares the eligible perks with the player's non-secret needs (purpose, trip length, device) and the campaign budget, then proposes an exact product and package. The choice depends on what the player needs, not on a fixed answer-to-product table.
 4. The server atomically reserves the invitation and binds the claim to the player’s key. The sponsor reviews the exact product and price; approval atomically creates one order and reserves its budget. The sponsor then authorises fulfillment with a shielded testnet payment.
 5. After confirmation, the existing fulfillment service buys through Bitrefill from event credits, polls until delivered, and seals the result to the player's key. The player need not visit Bitrefill, but may need an issuer account or installation step to use the perk.
 6. The player decrypts locally. The organizer view shows counts, reserved amounts, delivered order value, status and the proposed product/price needed for approval, without recipient keys or redemption data. Organizer UI restrictions do not exclude a privileged server operator or Bitrefill from plaintext access.
 
 **Implemented claim controls:** hashed invitation tokens, expiry, authenticated organizer access, atomic single-use claims, backend product restrictions, five mission-answer attempts, at most three model-selection attempts, and recovery of uncertain purchases with known invoice IDs without buying again. Claim read access uses a separate secret stored in the player’s browser; invitation and claim secrets are hashed on the server. A public QR can be copied; one claim per key is not one claim per human. Invitation limits bound spending but do not prove attendance or prevent answer sharing.
 
-**Candidate perks — eligibility is not yet verified through our API account:**
+**Candidate perks for international participants.** Our Bitrefill account's access to these isn't verified yet:
 
-| Candidate | Verification and first-demo decision |
+| Candidate | What still needs checking |
 |---|---|
-| Bitrefill Global / Asia / Europe eSIM | Global public listing verified; exact account access, live price, regional coverage and redeemability still need checking. Require a compatible unlocked device. "Global" does not mean every country. Start with one verified package. |
-| Uber & Uber Eats International voucher | Exact SKU, country/currency restrictions and account eligibility unverified. Do not promise worldwide use. |
-| NordVPN / Surfshark International | Exact SKU, price, account and redemption requirements unverified. |
-| FlightGift / AirlineGift / TripGift | Account access and redemption conditions unverified; booking can require passenger information. Exclude from the first demo. |
+| Bitrefill Global / Asia / Europe eSIM | The public listing is verified. Our account's access, the live price, regional coverage and redeemability still need checking, and the player needs a compatible unlocked phone. "Global" doesn't mean every country. |
+| Uber & Uber Eats International voucher | The exact product, country and currency restrictions, and account eligibility. |
+| NordVPN / Surfshark International | The exact product, price, and account and redemption requirements. |
+| FlightGift / AirlineGift / TripGift | Account access and redemption conditions. Bookings can need passenger details, so these are left out for now. |
 
-Sources: [Bitrefill Global eSIM](https://www.bitrefill.com/np/en/esims/bitrefill-esim-global/), [Uber gift-card restrictions](https://gifts.uber.com/giftcards) (not verification of the proposed international voucher).
+Sources: [Bitrefill Global eSIM](https://www.bitrefill.com/np/en/esims/bitrefill-esim-global/), [Uber gift-card restrictions](https://gifts.uber.com/giftcards). The Uber page covers its gift cards in general, not the international voucher.
 
-No blanket "global and no-KYC" promise: Zealed can avoid collecting names/emails while issuers still impose their own requirements. Exclude US-only cards such as Amazon.com, Apple US, US prepaid Visa/Mastercard and Airbnb USA from the proposed international campaign.
+Zealed doesn't promise "global, no-KYC" perks. It avoids collecting names and emails, but issuers still set their own requirements. US-only cards (Amazon.com, Apple US, US prepaid Visa and Mastercard, Airbnb USA) are left out of international campaigns.
 
 ### Current implemented shopping flow
 
@@ -89,10 +96,18 @@ No blanket "global and no-KYC" promise: Zealed can avoid collecting names/emails
 2. Open `/campaigns`, unlock with that token, search the catalog for the destination, and select 1–5 products. Verify regional coverage, account and redemption requirements yourself. Set a budget up to $20 (server spending caps also apply).
 3. Create a one-use invitation. Save its link immediately: the server stores only its hash. Its secret travels in the URL fragment, is stored locally by the player, and is removed from the address bar. Treat it as a bearer invitation: anyone holding it can reserve the claim.
 4. Open the invitation on a separate browser/device. Complete the mission, then ask the agent to select an eSIM or gift card from the allowlist. Missing model credentials or unsuitable products fail closed; there is no silent simulated agent fallback.
-5. In the organizer workspace, review and approve the exact reward. Pay the generated testnet request. Approvals are idempotent and cannot change the player’s key. Quotes expire after 15 minutes; changed prices fail closed.
+5. In the organizer workspace, review and approve the exact reward, then pay the shielded testnet request it shows. Use **Open payment in wallet** (a ZIP-321 link), or pay from the command line with `pnpm zkool:pay 'zcash:utest1…?amount=…&memo=…'`, pasting that same link. Approvals are idempotent and can't change the player's key. Quotes expire after 15 minutes, and a changed price fails closed.
 6. Return to the player browser to follow delivery and reveal the result. Player credentials and keys persist in IndexedDB; `/chat?view=orders` can reopen delivered orders in that browser. Sponsor credentials cannot read the player’s order endpoint.
 
-**Modes and recovery:** the organizer screen identifies catalog and purchase mode. Free test products are not redeemable; simulated mode is development-only. A failed or expired invitation/order requires operator attention; uncertain purchases must be reconciled before another purchase. Cross-device claim recovery is not implemented: a decryption-key backup alone does not restore the separate claim access secret.
+**Modes and recovery:**
+- The organizer screen shows the catalog mode and the purchase mode.
+  - **simulate** is the default when `BITREFILL_PURCHASES` is unset or there's no Bitrefill API key. Its result is labelled SIMULATED.
+  - **test** buys Bitrefill's free test products, whose codes can't be redeemed.
+  - **live** buys real products from event credits.
+- A sponsored order expires 15 minutes after approval if it isn't paid, and then the sponsor can approve the reward again. An expired order that already saw a payment stays bound, so a reward can't be bought twice.
+- Prices are re-checked at approval and at purchase. They may rise by at most 5% from the approved price (BTC/USD moves between steps), and never above the campaign budget or the per-order cap.
+- An uncertain purchase is reconciled before anything else is bought.
+- Cross-device claim recovery isn't built. A backup of the decryption key alone doesn't restore the separate claim secret.
 
 ### Original shopping checkout
 
@@ -132,8 +147,10 @@ pnpm zkool:setup
 # 3. Fund the payer wallet with free TAZ (1 TAZ per address per day):
 curl -X POST https://fauzec.com/api/v1/claim -H 'Content-Type: application/json' \
   -d '{"network":"testnet","address":"utest1…"}'
-# 4. Pay an order from the command line (prints the txid and the explorer link):
+# 4. Pay from the command line (prints the txid and the explorer link): a checkout order by its ID,
+#    or a mission reward by the ZIP-321 link on the sponsor's screen:
 pnpm zkool:pay <orderId>
+pnpm zkool:pay 'zcash:utest1…?amount=…&memo=…'
 ```
 
 **Requirements:** Node 22+ (tested on 24) and pnpm 11. Real payments also need `zkool_graphql`: either the prebuilt binary from [zkool2 release v6.36.0](https://github.com/hhanh00/zkool2/releases), or a build from source with `cargo build --release --features graphql --bin zkool_graphql`.
@@ -153,14 +170,13 @@ pnpm zkool:pay <orderId>
 | Watch-only detection and confirmation via zkool_graphql | ✅ real | The watch-only account (UFVK, birth 4581688) matched the memo tag, cart hash, exact amount and recipient, then marked the order paid after 1 confirmation. TODO: video timestamp |
 | Bitrefill purchase triggered by the confirmed payment, polled until delivered | ✅ real API purchases of Bitrefill **test products** (`BITREFILL_PURCHASES=test`) | **Gift card:** order `6c279e24`, txid `7bc881c3cce15e0f5b24256f0c0de4a517c752760187f07faf210fcd07be8334` (height 4581762), invoice `98d4f316…`. **eSIM** through `POST /esims`: order `49efc554`, txid `a352f788e27c073937b31ff40de810bcd27a434a2af5f067bc9df605062158ed` (height 4581766), invoice `3f51bca9…` |
 | Paid Bitrefill purchase of a real product | 🟡 not yet. It needs event credits and `BITREFILL_PURCHASES=live` | TODO: invoice ID, video timestamp |
-| Mission, claim reservation, agent selection and sponsor approval | Implemented; automated tests use a mocked model and simulated purchase | `lib/campaigns.test.ts`; live model selected the India eSIM in a separate read-only check; paid campaign demonstration outstanding |
+| Mission rewards end to end: campaign, mission, claim, agent selection, sponsor approval, shielded payment, Bitrefill purchase, player decryption | ✅ real on NU7 testnet, with a Bitrefill **test product** (`BITREFILL_PURCHASES=test`) | Campaign `b9761ef5` ($5 budget, India, two allowed products). Claim `a831d415`. Claude Haiku chose the India eSIM 1 GB / 7 days at $3.89. Order `f0b73cca`: 0.12967367 TAZ, txid `1843616532cee751cbe556e902723d47b6675b6c92300b24070b8b6d1961f9ca` (height 4581978). Delivered 71 s after sending: invoice `7d8e4569-daa5-4de9-9a35-518b7d42c47f`, Bitrefill order `6aeb1f39ff6775c18aed6e10`. The player decrypted the eSIM activation string locally. **Gift card path:** campaign `e8f9427e`, where the agent chose a Flipkart ₹50 card ($0.56). Order `bc64314b`, txid `89eff39bc9db8418d51eea75c9cfb3bb9462b1e0138ea687a017e3f4fe41f114` (height 4582006), invoice `2cc79a30-29c6-423a-9d7a-8844d63b671a`, decrypted by the player. Script: `scripts/e2e-rewards.ts`. TODO: video timestamp |
 | Result sealed to the buyer, decrypted locally, phone wiped | ✅ in the real-payment runs: a gift card code, and a real eSIM LPA string with its QR code rendered in the browser | orders `6c279e24` and `49efc554`, `lib/safety.test.ts` |
 
-
-**Reward verification:** 59 automated tests pass across nine files, including concurrent approvals, attempt limits, recipient-key substitution, HTTP authorization and simulated delivery/decryption. TypeScript and lint pass. Browser checks with mocked API responses exercised organizer creation, mission completion, selection and same-browser reload recovery at 375/768/1280 px. These checks are not paid-purchase evidence. The production build remains blocked in the review environment by Turbopack's local worker-port restriction; deployment is not verified.
+**Reward verification:** 65 automated tests pass across ten files. They cover concurrent approvals, attempt limits, recipient-key substitution, HTTP authorization, re-approval after an expired request, price drift and simulated delivery and decryption. TypeScript and lint pass. Browser checks with mocked API responses exercised organizer creation, mission completion, selection and same-browser reload recovery at 375/768/1280 px. These checks are not paid-purchase evidence. The production build (`pnpm build`) succeeds, but deployment to a public URL isn't done yet.
 
 **Known limitations:**
-- Mission rewards support one claim per campaign and one fixed learning quiz. They do not prove attendance or unique humanity. Live model selection passed a read-only check; no paid campaign run has been verified yet.
+- Mission rewards support one claim per campaign and one fixed learning quiz. They don't prove attendance or unique humanity. The real campaign run bought Bitrefill's free test eSIM. A paid real product is still to come.
 - The current payment memo binds one exact order and recipient key. One campaign deposit cannot authorize arbitrary future claims without new accounting and authorization logic.
 - The payment watcher cannot sign refunds. Automatic returns and pooled campaign funding require a separate design.
 - A `fake` Zcash backend exists for local development only. It's labelled SIMULATED in the UI, it's refused in production, and it's never used in the demo.
@@ -181,10 +197,10 @@ pnpm zkool:pay <orderId>
    - Phone numbers are encrypted in the browser and stored only as ciphertext. They're decrypted only for the Bitrefill call, then wiped.
 2. **What does the app reveal, and to whom?**
    - **The light-wallet server** (`testnet.zec.rocks`) sees our watcher's IP address and sync timing. The buyer's wallet uses its own light-wallet server, which sees the buyer's IP address.
-   - **Our server** stores order metadata: product, price, ZEC amount, memo tag, cart hash, the buyer's public key, txid, block height, Bitrefill invoice and order IDs, and ciphertext. A sealed phone number sits next to its order (and its txid) until fulfillment, then it's wiped. The agent log keeps a hashed session ID, event names and metadata only, never chat text.
+   - **Our server** stores order metadata: product, price, ZEC amount, memo tag, cart hash, the buyer's public key, txid, block height, Bitrefill invoice and order IDs, and ciphertext. A sealed phone number sits next to its order (and its txid) until fulfillment, then it's wiped. The agent log keeps a hashed session ID, event names and metadata only, never chat text. For mission rewards, it also stores each campaign (title, country, budget, allowlist, hashed invitation) and each claim (hashed claim secret, the player's public key, preferences and the chosen package). A claim points to the sponsor's order, so the player's key is linked to that order and its txid.
    - **The fulfillment function** holds the plaintext code or phone number in memory for the duration of the Bitrefill call, then seals or wipes it.
    - **Bitrefill** sees the purchase, the phone number for top-ups and our account. It can re-fetch codes by order ID.
-   - **The AI model provider** (Anthropic) sees the chat, which is filtered for phone numbers, keys and code-like strings on a best-effort basis, plus tool results: product IDs, prices, order IDs and statuses.
+   - **The AI model provider** (Anthropic) sees the chat, which is filtered for phone numbers, keys and code-like strings on a best-effort basis, plus tool results: product IDs, prices, order IDs and statuses. When it picks a mission reward, it receives the campaign's country, the player's structured preferences (purpose, number of days, whether the phone supports eSIM) and the allowed packages with prices. It gets no name, email, key or code, and no tools.
    - **The buyer's wallet** (for example Noir) sees our address, the amount and the memo.
    - **The BTC price feeds** (Coinbase, with Kraken as a backup) see our server's IP address. No user data is sent to them.
    - **The host:** TODO, name the hosting provider.
@@ -226,8 +242,8 @@ pnpm zkool:pay <orderId>
   - **Per day:** **$25** of agent orders in total. Budget is reserved in one SQLite transaction at checkout, and re-checked when the purchase is claimed.
   - **Bitrefill's own caps:** 5 top-ups and 15 gift cards a day per account.
   - **Hard ceiling:** the Bitrefill balance, which holds only event credits.
-  - **Other limits:** one purchase per order, through an atomic claim. An uncertain outcome is reconciled, never retried blindly. Quotes and proposals expire after 15 minutes. In live mode, fulfillment re-prices the product before it buys.
-- **Purchase proof:** TODO, the invoice ID of a paid purchase plus the video timestamp. So far, the full flow has made real API purchases of Bitrefill's test products: invoices `98d4f316-c3fa-482a-9137-91723064b4e5` (gift card) and `3f51bca9-39bc-4579-bd51-6df1fc584d4b` (eSIM). Test products cost nothing; the balance was 0 before and after.
+  - **Other limits:** one purchase per order, through an atomic claim. An uncertain outcome is reconciled, never retried blindly. Quotes and proposals expire after 15 minutes. In live mode, fulfillment re-prices the product before it buys. A rise of more than 5% over the approved price, or any price above the cap, stops the purchase.
+- **Purchase proof:** TODO, the invoice ID of a paid purchase plus the video timestamp. So far, both flows have made real API purchases of Bitrefill's test products. Mission rewards: invoices `7d8e4569-daa5-4de9-9a35-518b7d42c47f` (eSIM) and `2cc79a30-29c6-423a-9d7a-8844d63b671a` (gift card). Checkout: invoices `98d4f316-c3fa-482a-9137-91723064b4e5` (gift card) and `3f51bca9-39bc-4579-bd51-6df1fc584d4b` (eSIM). Test products cost nothing; the balance was 0 before and after.
 - **What's new here:**
   - **A new guarantee:** the agent, the database and the logs can't leak the code, because they never hold it in readable form.
   - **A new trigger:** a confirmed shielded payment, bound to the exact cart by its memo.
@@ -284,6 +300,9 @@ Buyer's browser ── chat ──▶ /api/agent ──▶ Claude Haiku (search 
 - **Guardrails live in code, not in the prompt.** Approvals are signed, budget reservations are atomic, and limits are re-checked before buying.
 
 **Code worth reading:**
+- `lib/campaigns.ts` and `lib/sponsor-order.ts`: hashed invitations, atomic single-use claims, and a sponsor approval that creates exactly one order bound to the player's key.
+- `lib/reward-agent.ts`: the model picks an index from a bounded list of eligible packages, and the server copies the product and price from the catalog, never from the model's text.
+- `lib/campaigns.test.ts`: concurrent approvals, attempt limits, key substitution and HTTP authorization.
 - `lib/fulfill.ts`: buys at most once, seals the result immediately and wipes the phone number.
 - `worker/watcher.ts` and `lib/zcash-zkool.ts`: exact, watch-only receipt matching.
 - `lib/cart.ts` and `lib/zip321.ts`: binding the payment memo to the cart.
@@ -302,47 +321,18 @@ Buyer's browser ── chat ──▶ /api/agent ──▶ Claude Haiku (search 
 
 TODO: link any of these if you publish them as a package.
 
-## 8. Delivery plan and roadmap
+## 8. What's next (30 days)
 
-**Remaining live-purchase gate:** verify one permitted, redeemable product through our actual Bitrefill account in live mode, from confirmed shielded authorization through local decryption. The existing free test products do not establish this. Confirm event credits and explicit purchase authorization before spending.
-
-**Initial implementation scope and time budget (planning estimates, not measured delivery times):**
-
-| Time | Work |
-|---|---|
-| 0–20 min | Verify live SKU, credits and purchase path |
-| 20–55 min | Campaign and Claim records; fixed mission configuration; hashed token, expiry and reservation |
-| 55–100 min | Mission gate, constrained agent selection, recipient-key binding and sponsor authorization |
-| 100–130 min | Player claim page and authenticated organizer summary |
-| 130–155 min | Replay, concurrent-claim, key-substitution, access and budget tests |
-| 155–180 min | Record real flow, update evidence and prepare submission |
-
-This assumes the existing deployment and fulfillment work. The gate remains outstanding: do not claim a real campaign purchase until its evidence exists. Preserve time to **Finalize and submit on Stadium by Wed 4 Nov 20:00 IST**; a saved draft is not a submission.
-
-**Reuse versus new work:** encryption/key storage, zkool receipt detection, Bitrefill transport and sealing/reconciliation are the foundation. Campaign-specific selection is implemented in `lib/reward-agent.ts`; deterministic authorization lives in `lib/campaigns.ts` and `lib/sponsor-order.ts`. Campaign/Claim SQL tables, authenticated organizer routes, mission validation, claim transactions and separate player/organizer pages are implemented. Full pooled funding would additionally change payment matching, cart commitments, budget accounting and fulfillment authorization; it is outside this deadline.
-
-### Demo script (record a real run before submitting)
-
-- **0:00–0:15:** organizer creates one bounded invitation and shows the mission and eligible perks.
-- **0:15–0:35:** player opens the QR in a separate browser, creates their key and completes the mission.
-- **0:35–0:50:** agent proposes an eligible perk and explains its choice.
-- **0:50–1:05:** sponsor approves the exact order and sends shielded testnet authorization.
-- **1:05–1:40:** confirmation, Bitrefill purchase, delivery and local decryption; keep codes masked.
-- **1:40–1:55:** aggregate organizer receipt, rejected duplicate claim and ciphertext-only storage.
-
-Chain and provider delays may exceed this script. Disclose time cuts in the recording. Judges could try bounded invitations with sponsor authorization; paid redemption stays in team-owned accounts under event rules unless organizers explicitly approve another arrangement.
-
-**Fallback:** a separate local walkthrough labeled **SIMULATED**, using the existing development adapters, can explain interaction but is not purchase or payment evidence. Keep it out of the scored core flow. Show any previously recorded real run separately with its actual txid/invoice and test/live mode. Never mark a pending real payment confirmed to finish the demo.
-
-### Remaining roadmap (not built)
-
-- Validate the workflow with one event organizer and run a bounded pilot by Fri 4 Dec 2026. Document actual feedback and a concrete partner or upstream action.
-- Extend from one claim to N claims with campaign budget accounting, revocation, safe expiry and recovery. Retain uncertain purchases as reservations until reconciled.
-- Investigate pooled funding and refunds separately. Specify currency conversion, custody, fees, refund authority and pending-claim settlement; testnet TAZ is not spendable Bitrefill credit.
-- Explore a ZK answer proof bound to campaign and recipient key, verified off-chain, with campaign-scoped nullifiers and replay protection. This proves a statement about an answer, not unique humanity or resistance to bots. A Noir-language circuit is distinct from Noir Wallet and does not automatically earn a bonus.
-- Explore network privacy, limited metadata retention and issuer-to-recipient encryption. Telegram can distribute claim links after the core flow works.
-- **Out of first-demo scope:** pooled deposits, automatic refunds, ZK, multiple missions, broad global inventory, Telegram integration and dispute handling.
-- **User evidence and continuation links:** TODO. No organizer demand, partnership or ZK implementation is claimed yet.
+- **Next milestone:** a bounded pilot with one event or community organizer by Fri 4 Dec 2026, with their feedback recorded here.
+- **After that:**
+  - Campaigns with many claims, plus budget accounting, revocation and safe expiry. Uncertain purchases stay reserved until they're reconciled.
+  - Claim links shared over Telegram or any other chat. The sealed copy is deleted after the first open or after a timer.
+  - A zero-knowledge proof of the mission answer, bound to the campaign and the player's key, with campaign-scoped nullifiers to stop replays. It proves a statement about the answer, not that the player is a unique human.
+  - Pooled sponsor funding and refunds, designed separately: custody, currency conversion, fees, who may refund, and how pending claims settle. Testnet TAZ can't be spent as Bitrefill credit.
+  - Network privacy for the watcher (Nym), shorter metadata retention, and issuers encrypting straight to the player's key.
+- **Not planned for now:** pooled deposits, automatic refunds, several missions per campaign, broad global inventory and dispute handling.
+- **Who benefits:** TODO: name a real organizer, partner or project.
+- **Already started:** TODO: links to an upstream issue or PR, a partner thread, or a post in [What are you building on Zcash?](https://forum.zcashcommunity.com/t/what-are-you-building-on-zcash/55172). No organizer demand or partnership is claimed yet.
 
 ## 9. Links
 
