@@ -11,12 +11,24 @@ export function ProgramAdmin({ campaignId, token }: { campaignId: string; token:
   const [secret, setSecret] = useState(""), [txid, setTxid] = useState(""), [busy, setBusy] = useState(false);
   const url = `/api/campaigns/${campaignId}/program`;
   useEffect(() => {
+    try {
+      const saved = sessionStorage.getItem(`zealed:payout:${campaignId}`);
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- recover an already-broadcast payout after reload
+      if (saved && /^[a-f0-9]{64}$/.test(saved)) setTxid(saved);
+    } catch { /* storage unavailable; keep the txid in this session */ }
+  }, [campaignId]);
+  useEffect(() => {
     if (!expanded) return;
     let live = true;
     const refresh = () => request<ProgramStatus | null>(url, token).then(d => { if (live) { setData(d); setLoading(false); } }).catch(() => { if (live) { setError("Could not refresh the mission review. Retrying automatically."); setLoading(false); } });
     void refresh(); const timer = setInterval(refresh, 5000); return () => { live = false; clearInterval(timer); };
   }, [expanded, url, token]);
   async function act(body: object) { setBusy(true); setError(""); try { setData(await request(url, token, body)); return true; } catch (e) { setError((e as Error).message); return false; } finally { setBusy(false); } }
+  function recordBroadcast(id: string) {
+    setTxid(id);
+    try { sessionStorage.setItem(`zealed:payout:${campaignId}`, id); } catch { /* keep in memory */ }
+    void act({ action: "deliver", txid: id });
+  }
   async function sendInstructions() {
     setBusy(true); setError("");
     try {
@@ -36,7 +48,12 @@ export function ProgramAdmin({ campaignId, token }: { campaignId: string; token:
       {data.tasks.map(t => { const result = data.results.find(r => r.task_id === t.id); return <div key={t.id} className="space-y-3 border-b border-line pb-5"><h4 className="font-medium">{t.title}</h4><StatusTag tone={result?.status === "approved" ? "success" : result?.status === "pending" ? "attention" : result?.status === "rejected" ? "error" : "neutral"}>{result?.status === "approved" ? "Approved" : result?.status === "pending" ? "Needs your review" : result?.status === "rejected" ? "Rejected · participant can resubmit" : "Not submitted"}</StatusTag>{result?.evidence && <a href={result.evidence} target="_blank" rel="noreferrer" className="workspace-inline-link break-all">Open public evidence</a>}{result?.status === "pending" && <div className="flex flex-wrap gap-2"><button disabled={busy} className={button} onClick={() => void act({ action: "review", taskId: t.id, approved: true })}>Approve task</button><button disabled={busy} className={buttonSecondary} onClick={() => void act({ action: "review", taskId: t.id, approved: false })}>Reject submission</button></div>}</div>; })}
       <p className="text-sm">{data.eligible ? "All tasks approved. Participant can select one prize." : "Redemption locked until every task passes."}</p>
       {r && <div className="space-y-3 border-t border-line pt-4"><h4 className="font-semibold">{prize?.title}</h4><p className="text-sm">Status: {r.state === "ready" ? "Sent / awaiting participant acknowledgment" : r.state}</p>
-        {r.kind === "zcash" && r.state === "requested" && <><p className="text-sm text-muted">Direct testnet payout. Verify this is a shielded address with a supported receiver. Send once, then record the txid. Recording a txid does not verify on-chain delivery.</p><p className="break-all font-mono text-xs">{r.address}</p><NoirPayButton to={r.address!} amountZec={amount} memo={memo} simulatedDetection={false} onSent={setTxid} /><a className="inline-flex min-h-11 items-center underline" href={uri}>Open payout in another wallet</a><label className="block space-y-2"><span>Broadcast transaction ID</span><input className={field} value={txid} maxLength={64} onChange={e => setTxid(e.target.value)} /></label><button className={button} disabled={busy || !/^[a-f0-9]{64}$/.test(txid)} onClick={() => void act({ action: "deliver", txid })}>Record submitted payout</button></>}
+        {r.kind === "zcash" && r.state === "requested" && <>
+          <p className="workspace-note">Send {Number(amount)} TAZ to the participant. Noir will ask you to approve; Zealed then saves the transaction ID automatically. The participant checks receipt in their wallet.</p>
+          <details><summary className="min-h-11 cursor-pointer py-3 text-sm text-muted">View recipient address</summary><p className="break-all font-mono text-xs">{r.address}</p></details>
+          {!txid ? <NoirPayButton to={r.address!} amountZec={amount} memo={memo} simulatedDetection={false} confirmation="recipient" onSent={recordBroadcast} /> : <Notice>Transaction broadcast. {busy ? "Saving the payout reference…" : "If recording failed, retry below. This does not send another payment."}<a className="workspace-inline-link mt-2" href={`https://testnet.zcashexplorer.app/transactions/${txid}`} target="_blank" rel="noreferrer">View transaction</a></Notice>}
+          <details open={txid ? true : undefined}><summary className="min-h-11 cursor-pointer py-3 text-sm text-muted">{txid ? "Save payout reference" : "Use another wallet or paste a transaction ID"}</summary><div className="space-y-3">{!txid && <a className="workspace-inline-link" href={uri}>Open payout in another wallet</a>}<label className="block space-y-2"><span>Broadcast transaction ID</span><input className={field} value={txid} maxLength={64} onChange={e => setTxid(e.target.value.trim())} /></label><button className={button} disabled={busy || !/^[a-f0-9]{64}$/.test(txid)} onClick={() => recordBroadcast(txid)}>{busy ? "Saving…" : "Save payout reference"}</button></div></details>
+        </>}
         {r.kind === "custom" && r.state === "requested" && <><label className="block space-y-2"><span>Private code or fulfillment instructions</span><textarea className={field} maxLength={6000} autoComplete="off" spellCheck={false} value={secret} onChange={e => setSecret(e.target.value)} /></label><p className="text-xs text-muted">Encrypted in this browser to the participant. For physical prizes, provide collection instructions. This does not prove physical delivery.</p><button className={button} disabled={busy || !secret.trim()} onClick={() => void sendInstructions()}>Seal & send instructions</button></>}
         {["giftcard", "esim"].includes(r.kind) && <p className="text-sm text-muted">The participant asks the agent to select a package. Then use the campaign’s approval and payment controls.</p>}
       </div>}

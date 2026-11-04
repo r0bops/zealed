@@ -15,7 +15,7 @@ type State =
   | { kind: "sent"; txid: string }
   | { kind: "error"; message: string };
 
-export function NoirPayButton({ to, amountZec, memo, simulatedDetection, onSent }: { to: string; amountZec: string; memo: string; simulatedDetection: boolean; onSent?: (txid: string) => void }) {
+export function NoirPayButton({ to, amountZec, memo, simulatedDetection, onSent, confirmation = "watcher" }: { to: string; amountZec: string; memo: string; simulatedDetection: boolean; onSent?: (txid: string) => void; confirmation?: "watcher" | "recipient" }) {
   const [installed, setInstalled] = useState<boolean | null>(null);
   const [state, setState] = useState<State>({ kind: "idle" });
 
@@ -72,7 +72,7 @@ export function NoirPayButton({ to, amountZec, memo, simulatedDetection, onSent 
         <a href={`https://testnet.zcashexplorer.app/transactions/${state.txid}`} target="_blank" rel="noreferrer" className="font-mono underline">
           {state.txid.slice(0, 12)}…
         </a>{" "}
-        Waiting for the network to confirm.
+        {confirmation === "recipient" ? "Broadcast submitted. The participant must check receipt in their wallet." : "Waiting for Zealed to detect a confirmed payment. Do not send again."}
       </p>
     );
 
