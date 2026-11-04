@@ -2,7 +2,7 @@
 import { createHash, createHmac } from "node:crypto";
 import { z } from "zod";
 import { ReclaimProofRequest, verifyProof, type Proof } from "@reclaimprotocol/js-sdk";
-import { serverSecret } from "./proposal";
+import { serverSecret } from "./server-secret";
 
 /**
  * Reclaim (zkTLS) mission verification.

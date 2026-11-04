@@ -3,7 +3,10 @@
 // sponsor approves → REAL shielded payment from the zkool payer → watcher confirms → Bitrefill buys
 // (test products with BITREFILL_PURCHASES=test) → the player decrypts locally.
 // Run: npx tsx --env-file=.env.local scripts/e2e-rewards.ts [connectivity|gift]
+// In email-list mode (MISSION_MODE=email) the player claims with E2E_ATTENDEE_EMAIL (default bob@example.org from
+// demo/luma-guests-demo.csv); each attendee claims once per event, so use a different listed email per run.
 import { randomBytes } from "node:crypto";
+import { attendeeHashBrowser } from "../lib/attendee-hash";
 import { decodeContent } from "../lib/payload";
 import { generateKeyPair, open } from "../lib/sodium";
 import { zkoolQuery } from "../lib/zcash-zkool";
@@ -41,12 +44,20 @@ async function main() {
   console.log(`${at()} campaign ${camp.id}`);
 
   // 2. Player opens the invitation and answers the mission with a fresh key and claim secret.
-  const invite = await call<{ mission: { question: string; options: string[] } }>("GET", `/api/campaigns/${camp.id}`, camp.token);
+  const invite = await call<{ mission: { question: string; options: string[] }; missionMode?: string; attendeeEventId?: string }>("GET", `/api/campaigns/${camp.id}`, camp.token);
   const answer = invite.mission.options.findIndex((o) => /exact shielded payment is confirmed/i.test(o));
   const player = await generateKeyPair();
   const secret = randomBytes(32).toString("base64url");
-  const claim = await call<{ id: string; state: string }>("POST", `/api/campaigns/${camp.id}/claim`, camp.token, { answer, publicKey: player.publicKey, secret });
-  console.log(`${at()} claim ${claim.id} (${claim.state}); mission answered: "${invite.mission.options[answer]}"`);
+  let claim: { id: string; state: string; attendee?: string };
+  if (invite.missionMode === "email") {
+    const email = process.env.E2E_ATTENDEE_EMAIL ?? "bob@example.org";
+    const emailHash = await attendeeHashBrowser(invite.attendeeEventId!, email); // what the browser sends: the hash only
+    claim = await call("POST", `/api/campaigns/${camp.id}/claim`, camp.token, { emailHash, publicKey: player.publicKey, secret });
+    console.log(`${at()} claim ${claim.id} (${claim.state}); approved attendee, anonymous ID "Attendee ${claim.attendee}" (email never sent)`);
+  } else {
+    claim = await call("POST", `/api/campaigns/${camp.id}/claim`, camp.token, { answer, publicKey: player.publicKey, secret });
+    console.log(`${at()} claim ${claim.id} (${claim.state}); mission answered: "${invite.mission.options[answer]}"`);
+  }
 
   // 3. The agent selects a perk within the campaign policy.
   await call("POST", `/api/claims/${claim.id}/select`, secret, { purpose, days: 7, esimCompatible: true });

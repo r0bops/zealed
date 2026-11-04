@@ -74,7 +74,7 @@ export function ReclaimVerify({ campaignId, storageKey, session, invitation, onS
     <h2 className="text-lg font-semibold">{invitation.missionAttendance ? "Attendee check" : "A short verified mission"}</h2>
     <p className="font-medium">{invitation.missionLabel ?? "Prove a fact about one of your web accounts"}</p>
     <p className="text-sm text-muted">{invitation.missionAttendance
-      ? "Zealed never sees your email or Luma account; we keep a one-way code so each attendee can claim once."
+      ? "Zealed checks the event, approval status and attendee identifier in your proof in memory. We store only a keyed one-way code to prevent repeat claims; the proof and account details are not stored."
       : "Reclaim creates a zkTLS proof from your own logged-in session. Zealed checks the proof once to reserve your reward and does not store the account details inside it."}</p>
     {error && <p role="alert" className="text-sm text-danger">{error}</p>}
     {phase === "idle" || phase === "starting"

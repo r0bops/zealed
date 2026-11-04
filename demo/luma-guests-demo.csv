@@ -1,0 +1,6 @@
+name,email,approval_status,ticket_name,registered_at
+Alice Demo,alice@example.org,approved,General Admission,2026-11-01T10:00:00Z
+Bob Demo,bob@example.org,approved,General Admission,2026-11-01T10:05:00Z
+Judge Demo,judge@example.org,approved,Judge,2026-11-02T09:00:00Z
+Carol Pending,carol@example.org,pending_approval,General Admission,2026-11-03T12:00:00Z
+Dave Declined,dave@example.org,declined,General Admission,2026-11-03T12:30:00Z
