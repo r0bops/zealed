@@ -94,10 +94,11 @@ export function purchaseMode(paymentSimulated: boolean): PurchaseMode {
   return wanted === "live" || wanted === "test" ? wanted : "simulate";
 }
 
-/** Bitrefill's free test product standing in for a real one in "test" mode (none exists for eSIMs). */
+/** Bitrefill's free test product standing in for a real one in "test" mode. */
 export function testProductFor(kind: ProductKind): { productId: string; value: string } | null {
   if (kind === "giftcard") return { productId: "test-gift-card-code", value: "10" };
   if (kind === "topup") return { productId: "test-phone-refill", value: "10" };
+  if (kind === "esim") return { productId: "test-esim-product", value: "1GB, 7 Days" };
   return null;
 }
 
