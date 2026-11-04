@@ -8,13 +8,17 @@ import type { Choice } from "@/lib/campaigns";
 import { ProgramBuilder, initialProgram } from "../program-builder";
 import { ProgramAdmin } from "../program-admin";
 import type { ProgramInput, PublicProgram } from "@/lib/program-schema";
-type Summary = { program?: PublicProgram; id: string; title: string; budgetCents: number; country: string; claimed: number; delivered: number; reservedCents: number; deliveredCents: number; status: string; choice: Choice | null };
+type Summary = { program?: PublicProgram; acknowledged?: number; id: string; title: string; budgetCents: number; country: string; claimed: number; delivered: number; reservedCents: number; deliveredCents: number; status: string; choice: Choice | null };
 type Listing = { campaigns: Summary[]; simulatedCatalog: boolean; purchaseMode: string };
 type Payment = { id: string; to: string; amountZec: string; memo: string; zip321: string; status: string; simulated: boolean; expiresAt: number };
 const TRACK = ["Shared", "Claimed", "Perk chosen", "Paid", "Delivered"];
 /** Steps completed for one campaign, from the claim state or the order status. */
 function progress(status: string): { done: number; failed: boolean } {
   if (status === "available") return { done: 1, failed: false };
+  if (["tasks_pending", "prize_unlocked", "prize_reserved"].includes(status)) return { done: 2, failed: false };
+  if (status === "prize_requested") return { done: 3, failed: false };
+  if (status === "prize_ready") return { done: 4, failed: false };
+  if (status === "prize_acknowledged") return { done: 5, failed: false };
   if (status === "selecting" || status === "selection_failed") return { done: 2, failed: false };
   if (["proposed", "awaiting_payment", "payment_seen"].includes(status)) return { done: 3, failed: false };
   if (status === "expired") return { done: 3, failed: true };
@@ -75,7 +79,7 @@ export function CampaignDashboard() {
         <p className="text-xs text-muted">Save this link now; its secret is not stored on the server.</p></section>}
       {presenting === "invite" && invite && <QRPresenter value={invite} label="Player invitation QR code" title="Scan to claim your reward" hint="Point your phone camera at this code. Keep the page that opens: your reward is sealed to that browser." onClose={() => setPresenting("")} />}
       <section className="flex flex-col gap-4"><h2 className="text-xl font-semibold">Campaigns</h2>{!data?.campaigns.length && <p className="text-muted">No campaigns yet. Create an invitation above.</p>}{data?.campaigns.map(c => <article key={c.id} className={panel}>
-        <h3 className="font-semibold">{c.title}</h3><Steps label={`Progress for ${c.title}`} steps={TRACK} current={progress(c.status).done} failed={progress(c.status).failed} /><p className="text-sm">{c.claimed}/1 claimed · {c.delivered} delivered · ${(c.reservedCents / 100).toFixed(2)} reserved · ${((c.deliveredCents ?? 0) / 100).toFixed(2)} delivered value</p><p className="text-sm text-muted">Status: {c.status}</p>
+        <h3 className="font-semibold">{c.title}</h3><Steps label={`Progress for ${c.title}`} steps={c.program ? ["Shared", "Tasks", "Prize chosen", "Sent", "Received"] : TRACK} current={progress(c.status).done} failed={progress(c.status).failed} /><p className="text-sm">{c.claimed}/1 joined · {c.delivered} Bitrefill delivered · {c.acknowledged ?? 0} other prizes acknowledged</p><p className="text-xs text-muted">Bitrefill: ${(c.reservedCents / 100).toFixed(2)} reserved · ${((c.deliveredCents ?? 0) / 100).toFixed(2)} delivered value</p><p className="text-sm text-muted">Status: {c.status.replaceAll("_", " ")}</p>
         {c.program && <ProgramAdmin campaignId={c.id} token={token} />}
         {c.choice && <><p className="text-sm">{c.choice.productName} · {c.choice.packageValue} · ${(c.choice.priceCents / 100).toFixed(2)}</p><p className="text-sm text-muted">{c.choice.reason}</p></>}
         {(c.status === "proposed" || c.status === "awaiting_payment" || c.status === "expired" && !!c.choice) && <button className={button} disabled={busy} onClick={() => void run(async () => { const d = await request<{ payment: Payment }>(`/api/campaigns/${c.id}/approve`, token, {}); setPayment(d.payment); setPayCampaign(c.id); setData(await request<Listing>("/api/campaigns", token)); })}>{c.status === "expired" ? "Prepare a new payment request" : c.status === "proposed" ? "Approve exact reward & prepare payment" : "Show payment request"}</button>}

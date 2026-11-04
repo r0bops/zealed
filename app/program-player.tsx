@@ -46,7 +46,7 @@ export function ProgramPlayer({ campaignId, session, title, expired, onSession, 
   const completed = data?.results.filter(r => r.status === "approved").length ?? 0;
   return <RewardLayout title={title} role="claim">
     <p className="text-muted">Complete every mission, unlock your prize, and receive it privately. One participant and one reward per invitation.</p>
-    <Steps label="Reward progress" steps={["Join", "Complete tasks", "Choose prize", "Receive"]} current={!session.claimId ? 0 : !data?.eligible ? 1 : !r ? 2 : 3} />
+    <Steps label="Reward progress" steps={["Join", "Complete tasks", "Choose prize", "Receive"]} current={!session.claimId ? 0 : !data?.eligible ? 1 : !r ? 2 : r.state === "acknowledged" ? 4 : 3} />
     {error && <p role="alert" className="rounded-lg border border-danger p-4 text-danger">{error}</p>}
     {expired && !r && <p role="alert" className="text-danger">This invitation has expired. Existing deliveries can still be opened.</p>}
     {!session.claimId ? <section className={panel}><h2 className="text-xl font-semibold">Your mission checklist</h2><ul className="space-y-3">{program.tasks.map(t => <li key={t.id} className="border-b border-line pb-3"><span className="font-mono text-xs text-accent">{t.kind.toUpperCase()}</span><p>{t.title}</p></li>)}</ul><button className={button} disabled={busy || expired} onClick={() => void run(start)}>{busy ? "Creating private access…" : "Join & start missions"}</button><p className="text-xs text-muted">This reserves the invitation for this browser. Keep its storage to recover your reward.</p></section> : !data ? <p role="status">Loading your missions…</p> : <>

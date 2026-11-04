@@ -82,7 +82,7 @@ export function NoirPayButton({ to, amountZec, memo, simulatedDetection, onSent 
         type="button"
         onClick={pay}
         disabled={busy}
-        className="rounded-lg bg-foreground px-3 py-2 text-sm font-medium text-background transition-opacity disabled:opacity-50"
+        className="min-h-11 rounded-lg bg-accent px-3 py-2 text-sm font-medium text-background transition-opacity disabled:opacity-50"
       >
         {state.kind === "connecting" ? "Connecting to Noir Wallet…" : state.kind === "sending" ? "Approve the payment in Noir Wallet…" : `Pay ${amountZec} TAZ with Noir Wallet`}
       </button>

@@ -5,7 +5,7 @@ import { getOrder, reserveOrder } from "./orders";
 import type { Order } from "./db/schema";
 
 import { programInput } from "./program-schema";
-import { storeProgram, assertProgramPurchase, publicProgram } from "./program";
+import { storeProgram, assertProgramPurchase, publicProgram, programStatus } from "./program";
 
 export const mission = {
   question: "When should Zealed release a reward?",
@@ -147,10 +147,13 @@ export function canReadRewardOrder(orderId: string, token: string) {
 export function sponsorSummary(c: Campaign) {
   const p = claimForCampaign(c.id);
   const o: Order | undefined = p?.order_id ? getOrder(p.order_id) : undefined;
+  const progress = p ? programStatus(p) : null;
+  const taskState = progress ? !progress.eligible ? "tasks_pending" : !progress.redemption ? "prize_unlocked" : ["custom", "zcash"].includes(progress.redemption.kind) ? `prize_${progress.redemption.state}` : p?.attempts === 0 ? "prize_reserved" : p?.state : p?.state;
   return { id: c.id, title: c.title, budgetCents: c.budget_cents, country: c.country, expiresAt: c.expires_at,
     program: publicProgram(c.id),
+    acknowledged: progress?.redemption?.state === "acknowledged" ? 1 : 0,
     claimed: p ? 1 : 0, delivered: o?.status === "delivered" ? 1 : 0,
     reservedCents: o && ["awaiting_payment", "payment_seen", "paid", "fulfilling", "failed_uncertain"].includes(o.status) ? o.priceUsdCents : 0,
-    deliveredCents: o?.status === "delivered" ? o.priceUsdCents : 0, status: o?.status ?? p?.state ?? "available",
+    deliveredCents: o?.status === "delivered" ? o.priceUsdCents : 0, status: o?.status ?? taskState ?? "available",
     choice: p?.choice ? JSON.parse(p.choice) as Choice : null };
 }
