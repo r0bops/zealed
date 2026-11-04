@@ -54,7 +54,7 @@ DRAFT. Before submitting:
 ## 3. Try it in 5 minutes
 
 **Without installing anything:**
-1. Open TODO: live URL.
+1. Open TODO: live URL and go to **Chat** (`/chat`). The orders you've made in that browser are in the same workspace, in the orders view (`/chat?view=orders`).
 2. Ask: "Get me the cheapest Airtel top-up" or "A ₹50 Flipkart gift card".
 3. Follow the checkout card. Pay the shielded request from a testnet wallet: the [Noir Wallet testnet extension](https://github.com/NoirWallet/noir-wallet/releases) (load the `-testnet.zip` build unpacked) or any NU7 testnet wallet that can scan a ZIP-321 QR code.
 4. You should see the order go from awaiting payment to paid once the payment is mined, then to delivered. That takes about 1–2 minutes. Your browser decrypts the result locally, and the code stays masked until you click **Reveal**.
